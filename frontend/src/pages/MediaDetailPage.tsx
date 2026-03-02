@@ -1,30 +1,205 @@
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Film, Tv } from 'lucide-react';
+import { Film, Tv, Send, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { MediaType } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBadge } from '@/components/StatusBadge';
+import { search as searchApi, requests as requestsApi } from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import type { MediaSearchResult, MediaRequest, MediaType } from '@/types';
 
 export function MediaDetailPage() {
-  const { mediaType, id } = useParams<{ mediaType: MediaType; id: string }>();
+  const { mediaType, id } = useParams<{ mediaType: string; id: string }>();
+  const { user } = useAuth();
+  const [media, setMedia] = useState<MediaSearchResult | null>(null);
+  const [existingRequest, setExistingRequest] = useState<MediaRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [requesting, setRequesting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const fetchMedia = useCallback(async () => {
+    if (!mediaType || !id) return;
+    try {
+      // Search by ID to get media details
+      const results = await searchApi.query(id, mediaType as MediaType);
+      const match = results.find((r) => String(r.id) === id);
+      setMedia(match ?? results[0] ?? null);
+    } catch {
+      setMedia(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [mediaType, id]);
+
+  const checkExistingRequest = useCallback(async () => {
+    if (!user) return;
+    try {
+      const myRequests = await requestsApi.list();
+      const match = myRequests.find(
+        (r) => String(r.tmdbId) === id && r.mediaType === mediaType
+      );
+      setExistingRequest(match ?? null);
+    } catch {
+      // Ignore — user might not be logged in
+    }
+  }, [user, id, mediaType]);
+
+  useEffect(() => {
+    fetchMedia();
+    checkExistingRequest();
+  }, [fetchMedia, checkExistingRequest]);
+
+  const handleRequest = async () => {
+    if (!media) return;
+    setRequesting(true);
+    try {
+      const req = await requestsApi.create({
+        mediaType: media.mediaType,
+        tmdbId: media.id,
+        title: media.title,
+        year: media.year,
+        overview: media.overview,
+        posterPath: media.posterUrl,
+      });
+      setExistingRequest(req);
+      setDialogOpen(false);
+      toast.success(`Requested "${media.title}"`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create request');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6 py-6">
+        <div className="flex flex-col gap-6 sm:flex-row">
+          <Skeleton className="h-72 w-48 shrink-0 rounded-lg" />
+          <div className="flex-1 space-y-4">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-10 w-40" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!media) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+        <p>Media not found.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-3xl py-10">
+    <div className="mx-auto max-w-4xl py-6">
+      {/* Backdrop blur hero */}
+      {media.posterUrl && (
+        <div className="relative -mx-4 -mt-6 mb-6 h-48 overflow-hidden md:-mx-6">
+          <img
+            src={media.posterUrl}
+            alt=""
+            className="h-full w-full object-cover blur-2xl brightness-30 saturate-150"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+        </div>
+      )}
+
       <div className="flex flex-col gap-6 sm:flex-row">
-        <div className="flex h-72 w-48 shrink-0 items-center justify-center rounded-lg bg-muted">
-          {mediaType === 'movie' ? (
-            <Film className="h-16 w-16 text-muted-foreground" />
+        {/* Poster */}
+        <div className="h-72 w-48 shrink-0 overflow-hidden rounded-lg bg-muted shadow-lg">
+          {media.posterUrl ? (
+            <img
+              src={media.posterUrl}
+              alt={media.title}
+              className="h-full w-full object-cover"
+            />
           ) : (
-            <Tv className="h-16 w-16 text-muted-foreground" />
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              {media.mediaType === 'movie' ? (
+                <Film className="h-16 w-16" />
+              ) : (
+                <Tv className="h-16 w-16" />
+              )}
+            </div>
           )}
         </div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-bold">Media Detail</h1>
-          <p className="text-muted-foreground">
-            {mediaType === 'movie' ? 'Movie' : 'TV Show'} ID: {id}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Full detail page will be implemented in Step 10 (Issue #20).
-          </p>
-          <Button>Request This Title</Button>
+
+        {/* Info */}
+        <div className="flex-1 space-y-4">
+          <div>
+            <h1 className="text-3xl font-bold">{media.title}</h1>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-muted-foreground">{media.year}</span>
+              <Badge variant="secondary">
+                {media.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+              </Badge>
+            </div>
+          </div>
+
+          {media.overview && (
+            <p className="leading-relaxed text-muted-foreground">{media.overview}</p>
+          )}
+
+          {/* Request action */}
+          {existingRequest ? (
+            <div className="flex items-center gap-3">
+              <Button disabled variant="outline">
+                <Check className="mr-2 h-4 w-4" />
+                Already Requested
+              </Button>
+              <StatusBadge status={existingRequest.status} />
+            </div>
+          ) : user ? (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Send className="mr-2 h-4 w-4" />
+                  Request This Title
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Request</DialogTitle>
+                  <DialogDescription>
+                    Request &quot;{media.title}&quot; ({media.year}) to be added to Plex?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleRequest} disabled={requesting}>
+                    {requesting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 h-4 w-4" />
+                    )}
+                    {requesting ? 'Requesting...' : 'Confirm'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Log in to request this title.
+            </p>
+          )}
         </div>
       </div>
     </div>

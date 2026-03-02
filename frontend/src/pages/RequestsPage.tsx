@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { RequestCard } from '@/components/RequestCard';
 import { RequestSkeleton } from '@/components/LoadingSkeleton';
+import { Button } from '@/components/ui/button';
 import { requests as requestsApi } from '@/services/api';
 import type { MediaRequest } from '@/types';
-import { InboxIcon } from 'lucide-react';
+import { Search, InboxIcon } from 'lucide-react';
 
 export function RequestsPage() {
   const [items, setItems] = useState<MediaRequest[]>([]);
@@ -34,9 +36,15 @@ export function RequestsPage() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+        <div className="flex flex-col items-center gap-4 py-20 text-muted-foreground">
           <InboxIcon className="h-12 w-12" />
-          <p>You haven&apos;t made any requests yet.</p>
+          <p>No requests yet — search for something to watch!</p>
+          <Button asChild variant="outline">
+            <Link to="/search">
+              <Search className="mr-2 h-4 w-4" />
+              Search
+            </Link>
+          </Button>
         </div>
       )}
     </div>
