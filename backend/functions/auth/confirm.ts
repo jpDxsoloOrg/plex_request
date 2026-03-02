@@ -1,9 +1,52 @@
+import {
+  CognitoIdentityProviderClient,
+  ConfirmSignUpCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { success } from '../../lib/response';
+import { success, badRequest, serverError } from '../../lib/response';
 
-/** Stub — full implementation in Issue #16 */
+const cognito = new CognitoIdentityProviderClient({});
+const clientId = process.env.COGNITO_CLIENT_ID ?? '';
+
+interface ConfirmBody {
+  email: string;
+  code: string;
+}
+
 export const handler = async (
-  _event: APIGatewayProxyEventV2
+  event: APIGatewayProxyEventV2
 ): Promise<APIGatewayProxyResultV2> => {
-  return success({ message: 'confirm endpoint — not yet implemented' });
+  if (!event.body) {
+    return badRequest('Request body is required');
+  }
+
+  const body = JSON.parse(event.body) as ConfirmBody;
+
+  if (!body.email || !body.code) {
+    return badRequest('email and code are required');
+  }
+
+  try {
+    await cognito.send(
+      new ConfirmSignUpCommand({
+        ClientId: clientId,
+        Username: body.email,
+        ConfirmationCode: body.code,
+      })
+    );
+
+    return success({ message: 'Email confirmed. You can now log in.' });
+  } catch (error: unknown) {
+    const cognitoError = error as { name?: string; message?: string };
+
+    if (cognitoError.name === 'CodeMismatchException') {
+      return badRequest('Invalid confirmation code');
+    }
+    if (cognitoError.name === 'ExpiredCodeException') {
+      return badRequest('Confirmation code has expired');
+    }
+
+    console.error('Confirm error:', error);
+    return serverError('Failed to confirm email');
+  }
 };

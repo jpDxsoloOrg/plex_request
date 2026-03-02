@@ -1,9 +1,27 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { success } from '../../lib/response';
+import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { query, REQUESTS_TABLE } from '../../lib/dynamodb';
+import { getUserContext } from '../../lib/auth';
+import { success, serverError } from '../../lib/response';
 
-/** Stub — full implementation in Issue #22 */
 export const handler = async (
-  _event: APIGatewayProxyEventV2
+  event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyResultV2> => {
-  return success({ message: 'list requests endpoint — not yet implemented' });
+  const user = getUserContext(event);
+
+  try {
+    const requests = await query({
+      TableName: REQUESTS_TABLE,
+      IndexName: 'UserIndex',
+      KeyConditionExpression: 'userId = :userId',
+      ExpressionAttributeValues: {
+        ':userId': user.userId,
+      },
+      ScanIndexForward: false, // newest first
+    });
+
+    return success({ requests });
+  } catch (error) {
+    console.error('List requests error:', error);
+    return serverError('Failed to list requests');
+  }
 };
