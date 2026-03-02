@@ -13,7 +13,7 @@
   - API Gateway with CORS
   - Lambda authorizer for JWT validation
   - S3 bucket + CloudFront for frontend hosting
-  - Environment variables for TMDB API key, Radarr/Sonarr URLs (stored in SSM Parameter Store)
+  - Environment variables for Radarr/Sonarr/SABnzbd URLs and API keys (stored in SSM Parameter Store)
 
 ### 1.2 Frontend Setup
 - Initialize `frontend/` with Vite + React + TypeScript
@@ -92,20 +92,20 @@
 #### Settings Table
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `settingKey` | String (PK) | e.g. `radarr`, `sonarr`, `tmdb` |
+| `settingKey` | String (PK) | e.g. `radarr`, `sonarr`, `sabnzbd` |
 | `baseUrl` | String | Service URL |
 | `apiKey` | String | API key (encrypted at rest) |
 | `qualityProfileId` | Number | Default quality profile |
 | `rootFolderPath` | String | Root folder for downloads |
 | `enabled` | Boolean | Whether integration is active |
 
-### 3.2 Search API (TMDB Proxy)
+### 3.2 Search API (via Radarr/Sonarr)
 - `GET /search?query=<term>&type=<movie|tv>` (authenticated)
-- Lambda proxies to TMDB API:
-  - Movies: `https://api.themoviedb.org/3/search/movie?query=<term>`
-  - TV: `https://api.themoviedb.org/3/search/tv?query=<term>`
+- Lambda proxies search through Radarr or Sonarr's built-in lookup endpoints:
+  - Movies: Radarr `GET /api/v3/movie/lookup?term=<term>`
+  - TV: Sonarr `GET /api/v3/series/lookup?term=<term>`
+- No separate TMDB API key needed — Radarr and Sonarr handle TMDB/TVDB lookups internally
 - Returns normalized results: `{ id, title, year, overview, posterUrl, mediaType }`
-- TMDB API key stored in SSM Parameter Store, read at Lambda cold start
 
 ### 3.3 Request API
 - `POST /requests` (authenticated) - create new request
@@ -160,17 +160,9 @@
 When admin sets status to `approved`:
 1. Read Radarr/Sonarr settings from Settings table
 2. If `mediaType === 'movie'`: call Radarr `addMovie(tmdbId, ...)`
-3. If `mediaType === 'tv'`: call Sonarr `addSeries(tvdbId, ...)`
-   - Note: TMDB ID needs to be mapped to TVDB ID. TMDB API provides `external_ids` endpoint, or Sonarr lookup supports TMDB IDs via `term=tmdb:<id>`
+3. If `mediaType === 'tv'`: call Sonarr `addSeries(tvdbId, ...)` — Sonarr's lookup accepts TMDB IDs via `term=tmdb:<id>`, so no separate ID mapping needed
 4. Store returned `radarrId`/`sonarrId` on the request record
 5. If API call fails: keep status as `requested`, return error to admin
-
-### 4.3 TMDB-to-TVDB Mapping
-- For TV shows, Sonarr uses TVDB IDs internally
-- Options:
-  - Use TMDB `/tv/{id}/external_ids` to get TVDB ID before calling Sonarr
-  - Or use Sonarr's lookup which accepts TMDB IDs: `GET /api/v3/series/lookup?term=tmdb:<tmdbId>`
-- Recommend: use Sonarr's lookup directly with TMDB ID to avoid extra API call
 
 ---
 
@@ -209,7 +201,6 @@ When admin sets status to `approved`:
 - `/admin/settings` - Integration settings
   - Radarr: URL, API key, quality profile, root folder + test button
   - Sonarr: URL, API key, quality profile, root folder + test button
-  - TMDB: API key + test button
 
 ### 5.3 Components
 - `SearchBar` - debounced search input
@@ -251,8 +242,7 @@ When admin sets status to `approved`:
 - **Merge to main**: Deploy to prod (backend dev stage + prod frontend bucket + CloudFront invalidation)
 
 ### 6.4 Secrets Management
-- TMDB API key: SSM Parameter Store (`/plex-request/{stage}/tmdb-api-key`)
-- Radarr/Sonarr API keys: stored in DynamoDB Settings table (encrypted at rest via DynamoDB default encryption)
+- Radarr/Sonarr/SABnzbd API keys: stored in DynamoDB Settings table (encrypted at rest via DynamoDB default encryption)
 - Cognito client secret: not needed (public client for SPA)
 
 ---
@@ -371,7 +361,6 @@ Live download status display by integrating with SABnzbd's API. This is a **stre
 
 ## External API References
 
-- [TMDB API Docs](https://developer.themoviedb.org/docs)
 - [Radarr API Docs](https://radarr.video/docs/api/)
 - [Sonarr API Docs](https://sonarr.tv/docs/api/)
 - [SABnzbd API Docs](https://sabnzbd.org/wiki/configuration/4.4/api)
