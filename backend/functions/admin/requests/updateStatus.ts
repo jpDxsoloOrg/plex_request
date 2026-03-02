@@ -1,0 +1,9 @@
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { success } from '../../../lib/response';
+
+/** Stub — full implementation in Issue #24 */
+export const handler = async (
+  _event: APIGatewayProxyEventV2
+): Promise<APIGatewayProxyResultV2> => {
+  return success({ message: 'admin update request status endpoint — not yet implemented' });
+};

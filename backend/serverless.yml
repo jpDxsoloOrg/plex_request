@@ -1,0 +1,442 @@
+service: plex-request-api
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+  environment:
+    REQUESTS_TABLE: ${self:service}-${self:provider.stage}-requests
+    SETTINGS_TABLE: ${self:service}-${self:provider.stage}-settings
+    COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+    COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+    RADARR_BASE_URL: ${env:RADARR_BASE_URL, 'http://jpcoder.duckdns.org:7878'}
+    RADARR_API_KEY: ${env:RADARR_API_KEY, ''}
+    SONARR_BASE_URL: ${env:SONARR_BASE_URL, 'http://jpcoder.duckdns.org:8989'}
+    SONARR_API_KEY: ${env:SONARR_API_KEY, ''}
+    SABNZBD_BASE_URL: ${env:SABNZBD_BASE_URL, 'http://jpcoder.duckdns.org:38080'}
+    SABNZBD_API_KEY: ${env:SABNZBD_API_KEY, ''}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - !GetAtt RequestsTable.Arn
+            - !Join ['/', [!GetAtt RequestsTable.Arn, 'index/*']]
+            - !GetAtt SettingsTable.Arn
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminAddUserToGroup
+            - cognito-idp:ListUsers
+          Resource: !GetAtt CognitoUserPool.Arn
+  httpApi:
+    cors:
+      allowedOrigins:
+        - http://localhost:3000
+        - http://localhost:5173
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowCredentials: true
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+    noPrependStageInUrl: false
+
+functions:
+  # Auth - Lambda Authorizer
+  authorizer:
+    handler: functions/auth/authorizer.handler
+
+  # Auth endpoints (public)
+  authSignup:
+    handler: functions/auth/signup.handler
+    events:
+      - httpApi:
+          path: /auth/signup
+          method: POST
+
+  authConfirm:
+    handler: functions/auth/confirm.handler
+    events:
+      - httpApi:
+          path: /auth/confirm
+          method: POST
+
+  authLogin:
+    handler: functions/auth/login.handler
+    events:
+      - httpApi:
+          path: /auth/login
+          method: POST
+
+  authRefresh:
+    handler: functions/auth/refresh.handler
+    events:
+      - httpApi:
+          path: /auth/refresh
+          method: POST
+
+  authMe:
+    handler: functions/auth/me.handler
+    events:
+      - httpApi:
+          path: /auth/me
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  # Search (authenticated)
+  search:
+    handler: functions/search/search.handler
+    events:
+      - httpApi:
+          path: /search
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  # Requests (authenticated)
+  createRequest:
+    handler: functions/requests/create.handler
+    events:
+      - httpApi:
+          path: /requests
+          method: POST
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  getRequests:
+    handler: functions/requests/list.handler
+    events:
+      - httpApi:
+          path: /requests
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  getRequest:
+    handler: functions/requests/get.handler
+    events:
+      - httpApi:
+          path: /requests/{id}
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  # Admin requests (admin)
+  adminGetRequests:
+    handler: functions/admin/requests/list.handler
+    events:
+      - httpApi:
+          path: /admin/requests
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  adminUpdateRequestStatus:
+    handler: functions/admin/requests/updateStatus.handler
+    events:
+      - httpApi:
+          path: /admin/requests/{id}/status
+          method: PUT
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  adminGetRequestStats:
+    handler: functions/admin/requests/stats.handler
+    events:
+      - httpApi:
+          path: /admin/requests/stats
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  # Admin settings (admin)
+  adminGetSettings:
+    handler: functions/admin/settings/get.handler
+    events:
+      - httpApi:
+          path: /admin/settings
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  adminUpdateSetting:
+    handler: functions/admin/settings/update.handler
+    events:
+      - httpApi:
+          path: /admin/settings/{key}
+          method: PUT
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+  adminTestConnection:
+    handler: functions/admin/settings/testConnection.handler
+    events:
+      - httpApi:
+          path: /admin/settings/test/{key}
+          method: POST
+          authorizer:
+            name: jwtAuthorizer
+            type: jwt
+            id: !Ref HttpApiAuthorizerJwt
+
+resources:
+  Resources:
+    # DynamoDB Tables
+    RequestsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.REQUESTS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: requestId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: requestedAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: requestId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: requestedAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: requestedAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    SettingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.SETTINGS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: settingKey
+            AttributeType: S
+        KeySchema:
+          - AttributeName: settingKey
+            KeyType: HASH
+
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-${self:provider.stage}-user-pool
+        AutoVerifiedAttributes:
+          - email
+        UsernameAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireUppercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+        Schema:
+          - Name: email
+            Required: true
+            Mutable: true
+          - Name: name
+            Required: false
+            Mutable: true
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${self:provider.stage}-client
+        UserPoolId: !Ref CognitoUserPool
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
+        GenerateSecret: false
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 30
+        TokenValidityUnits:
+          AccessToken: hours
+          IdToken: hours
+          RefreshToken: days
+
+    CognitoAdminGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        GroupName: admins
+        UserPoolId: !Ref CognitoUserPool
+        Description: Admin users with elevated privileges
+
+    # HTTP API JWT Authorizer
+    HttpApiAuthorizerJwt:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId: !Ref HttpApi
+        AuthorizerType: JWT
+        IdentitySource: $request.header.Authorization
+        JwtConfiguration:
+          Audience:
+            - !Ref CognitoUserPoolClient
+          Issuer: !Sub https://cognito-idp.${self:provider.region}.amazonaws.com/${CognitoUserPool}
+        Name: jwtAuthorizer
+
+    # S3 Bucket for Frontend
+    FrontendBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${self:provider.stage}-frontend
+        WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: index.html
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    FrontendBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref FrontendBucket
+        PolicyDocument:
+          Statement:
+            - Sid: AllowCloudFrontAccess
+              Effect: Allow
+              Principal:
+                Service: cloudfront.amazonaws.com
+              Action: s3:GetObject
+              Resource: !Sub ${FrontendBucket.Arn}/*
+              Condition:
+                StringEquals:
+                  AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+    # CloudFront Origin Access Control
+    CloudFrontOAC:
+      Type: AWS::CloudFront::OriginAccessControl
+      Properties:
+        OriginAccessControlConfig:
+          Name: ${self:service}-${self:provider.stage}-oac
+          OriginAccessControlOriginType: s3
+          SigningBehavior: always
+          SigningProtocol: sigv4
+
+    # CloudFront Distribution
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          DefaultRootObject: index.html
+          Origins:
+            - DomainName: !GetAtt FrontendBucket.RegionalDomainName
+              Id: S3Origin
+              OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+              S3OriginConfig:
+                OriginAccessIdentity: ''
+          DefaultCacheBehavior:
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            Compress: true
+          CustomErrorResponses:
+            - ErrorCode: 403
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+              ErrorCachingMinTTL: 0
+            - ErrorCode: 404
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+              ErrorCachingMinTTL: 0
+
+  Outputs:
+    CognitoUserPoolId:
+      Value: !Ref CognitoUserPool
+      Description: Cognito User Pool ID
+
+    CognitoUserPoolClientId:
+      Value: !Ref CognitoUserPoolClient
+      Description: Cognito User Pool Client ID
+
+    ApiUrl:
+      Value: !Sub https://${HttpApi}.execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}
+      Description: API Gateway URL
+
+    FrontendBucketName:
+      Value: !Ref FrontendBucket
+      Description: Frontend S3 bucket name
+
+    CloudFrontDomainName:
+      Value: !GetAtt CloudFrontDistribution.DomainName
+      Description: CloudFront distribution domain name
+
+    CloudFrontDistributionId:
+      Value: !Ref CloudFrontDistribution
+      Description: CloudFront distribution ID

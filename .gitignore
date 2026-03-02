@@ -1,6 +1,30 @@
+# Dependencies
 node_modules/
-.env
-.serverless/
+
+# Build output
 dist/
+.build/
+
+# Serverless
+.serverless/
+
+# Environment files (keep .env.example committed)
+.env
+.env.local
+frontend/.env
+frontend/.env.devtest
+frontend/.env.production
+
+# IDE
 .DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
 *.js.map
+*.tsbuildinfo
+
+# OS
+Thumbs.db
