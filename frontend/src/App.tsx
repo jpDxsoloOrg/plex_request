@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/context/AuthContext';
 import { UserLayout } from '@/components/layouts/UserLayout';
 import { AdminLayout } from '@/components/layouts/AdminLayout';
@@ -19,6 +20,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 
 function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <Toaster position="bottom-right" theme="dark" richColors />
@@ -61,6 +63,7 @@ function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

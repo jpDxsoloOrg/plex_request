@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/StatusBadge';
 import { RequestSkeleton } from '@/components/LoadingSkeleton';
+import { Pagination } from '@/components/Pagination';
 import { admin } from '@/services/api';
 import { toast } from 'sonner';
 import type { MediaRequest, RequestStatus } from '@/types';
@@ -173,10 +174,13 @@ function RequestRow({
   );
 }
 
+const PAGE_SIZE = 15;
+
 export function RequestQueuePage() {
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState<MediaRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   const fetchRequests = useCallback(async (status?: RequestStatus) => {
     try {
@@ -198,9 +202,16 @@ export function RequestQueuePage() {
   useEffect(() => {
     setItems([]);
     setLoading(true);
+    setPage(1);
     const status = tab === 'all' ? undefined : (tab as RequestStatus);
     fetchRequests(status);
   }, [tab, fetchRequests]);
+
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const paged = useMemo(
+    () => items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [items, page]
+  );
 
   return (
     <div className="space-y-6">
@@ -223,11 +234,14 @@ export function RequestQueuePage() {
           ))}
         </div>
       ) : items.length > 0 ? (
-        <div className="space-y-3">
-          {items.map((req) => (
-            <RequestRow key={req.requestId} request={req} onStatusChange={reload} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {paged.map((req) => (
+              <RequestRow key={req.requestId} request={req} onStatusChange={reload} />
+            ))}
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </>
       ) : (
         <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
           <InboxIcon className="h-12 w-12" />
