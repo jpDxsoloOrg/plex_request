@@ -266,7 +266,40 @@ When admin sets status to `approved`:
 - Error boundaries and friendly error pages
 - Pagination for request lists
 
-### 7.2 Optional Enhancements (Future)
+### 7.2 SABnzbd Integration (Stretch Goal)
+Live download status display by integrating with SABnzbd's API. This is a **stretch goal** and not an initial priority - the core app works fine with admin-managed statuses.
+
+#### SABnzbd Client (`lib/integrations/sabnzbd.ts`)
+- `testConnection()` - `GET /api?mode=version&apikey=<key>`
+- `getQueue()` - `GET /api?mode=queue&apikey=<key>&output=json` - returns active downloads with progress %, speed, ETA
+- `getHistory(limit)` - `GET /api?mode=history&apikey=<key>&output=json` - returns completed downloads
+- `getStatus(nzbName)` - match a request's title against queue/history entries to find download progress
+
+#### How It Works
+1. Admin configures SABnzbd connection in Settings (URL + API key)
+2. When a request is in `approved` or `downloading` status, the frontend can poll a new endpoint to check SABnzbd queue
+3. `GET /admin/downloads/status` (admin) or `GET /requests/:id/download-status` (user) - Lambda calls SABnzbd API, matches against the request's title/tmdbId
+4. Frontend displays: download %, speed, ETA, or "queued" / "not found in SABnzbd"
+5. Optionally auto-transition status to `downloading` when found in SABnzbd queue, and to `complete` when found in history
+
+#### Settings Table Addition
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `settingKey` = `sabnzbd` | String (PK) | SABnzbd config |
+| `baseUrl` | String | SABnzbd URL (e.g. `http://jpcoder.duckdns.org:38080`) |
+| `apiKey` | String | SABnzbd API key |
+| `enabled` | Boolean | Whether integration is active |
+
+#### Frontend Addition
+- Download progress bar on request cards (when SABnzbd is configured and status is approved/downloading)
+- SABnzbd connection settings in admin settings page
+- Graceful fallback: if SABnzbd is not configured or unreachable, just show the manual status as usual
+
+#### Considerations
+- SABnzbd, Radarr, and Sonarr are all accessible via public HTTP addresses, so Lambda functions can call them directly without VPC configuration
+- Matching downloads to requests may be fuzzy (title-based) - Radarr/Sonarr download IDs could help with more precise matching
+
+### 7.3 Other Optional Enhancements (Future)
 - Push notifications when request status changes (SNS + email or web push)
 - Request comments / conversation between user and admin
 - Auto-status updates via Radarr/Sonarr webhooks (Radarr/Sonarr can POST to a webhook URL when download completes)
@@ -294,7 +327,8 @@ When admin sets status to `approved`:
 | 12 | Phase 3.5 - Settings API | Backend | Phase 4 |
 | 13 | Phase 5.2 - Settings Page | Frontend | Phase 3.5 |
 | 14 | Phase 6 - Deploy | DevOps | All above |
-| 15 | Phase 7 - Polish | UX | Phase 14 |
+| 15 | Phase 7.1 - Polish | UX | Phase 14 |
+| 16 | Phase 7.2 - SABnzbd (Stretch) | Backend + Frontend | Phase 14 |
 
 ---
 
@@ -327,6 +361,12 @@ When admin sets status to `approved`:
 | PUT | `/admin/settings/:key` | Update setting |
 | POST | `/admin/settings/test/:key` | Test connection |
 
+### Admin - SABnzbd (Stretch Goal)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/downloads/status` | All active SABnzbd downloads |
+| GET | `/requests/:id/download-status` | Download progress for a specific request |
+
 ---
 
 ## External API References
@@ -334,4 +374,5 @@ When admin sets status to `approved`:
 - [TMDB API Docs](https://developer.themoviedb.org/docs)
 - [Radarr API Docs](https://radarr.video/docs/api/)
 - [Sonarr API Docs](https://sonarr.tv/docs/api/)
+- [SABnzbd API Docs](https://sabnzbd.org/wiki/configuration/4.4/api)
 - [LunaSea App](https://www.lunasea.app/) (UX reference)
