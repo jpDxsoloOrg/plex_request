@@ -5,7 +5,7 @@
 ### 1.1 Backend Setup
 - Initialize `backend/` with `package.json`, TypeScript config, Serverless Framework
 - Configure `serverless.yml` with:
-  - Provider: AWS, Node.js 20, region `us-east-1`
+  - Provider: AWS, Node.js 22, region `us-east-1`
   - DynamoDB tables (on-demand billing):
     - **Requests** table (PK: `requestId`) - stores all media requests
     - **Settings** table (PK: `settingKey`) - stores Radarr/Sonarr connection config
