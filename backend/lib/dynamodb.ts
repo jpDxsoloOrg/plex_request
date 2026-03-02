@@ -59,6 +59,11 @@ export async function query(params: QueryCommandInput) {
   return result.Items ?? [];
 }
 
+export async function queryCount(params: Omit<QueryCommandInput, 'Select'>) {
+  const result = await docClient.send(new QueryCommand({ ...params, Select: 'COUNT' }));
+  return result.Count ?? 0;
+}
+
 export async function scan(params: ScanCommandInput) {
   const result = await docClient.send(new ScanCommand(params));
   return result.Items ?? [];
