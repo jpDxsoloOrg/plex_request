@@ -27,17 +27,17 @@ Plex Request provides a self-hosted, Overseerr/LunaSea-style workflow where auth
 
 ## Tech Stack
 
-- **Frontend**: React + TypeScript + Vite
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui
 - **Backend**: Node.js + TypeScript Lambda functions
 - **Infrastructure**: AWS (API Gateway, Lambda, DynamoDB, Cognito, S3, CloudFront)
 - **IaC**: Serverless Framework
-- **External APIs**: TMDB (search), Radarr v3 (movies), Sonarr v3 (TV shows)
+- **External APIs**: Radarr v3 (movies + search), Sonarr v3 (TV shows + search), SABnzbd (download status - stretch goal)
 - **Auth**: AWS Cognito with user self-registration and admin role
 
 ## Features
 
 ### User Features
-- Search movies and TV shows via TMDB
+- Search movies and TV shows via Radarr/Sonarr
 - Submit media requests
 - View personal request history with status tracking
 - User registration and login via Cognito

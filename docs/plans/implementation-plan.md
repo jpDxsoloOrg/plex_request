@@ -168,50 +168,77 @@ When admin sets status to `approved`:
 
 ## Phase 5: Frontend Implementation
 
-### 5.1 Layout & Navigation
-- **Navbar**: Logo, Search, My Requests, Admin (if admin), Login/Logout
-- **Responsive**: Mobile-first, works on phones (similar to LunaSea experience)
-- **Theme**: Dark theme (media apps convention)
+### 5.1 UI Stack
+- **Tailwind CSS v4** - utility-first styling
+- **shadcn/ui** - Radix-based component library styled with Tailwind (copy-paste, no runtime dependency)
+- **Lucide React** - icon library (used by shadcn/ui)
+- **Sonner** - toast notifications
+- **clsx + tailwind-merge** - className utilities (required by shadcn)
 
-### 5.2 Pages
+### 5.2 Theme & Layout
+- **Theme**: Dark by default (Overseerr/Plex aesthetic) - slate/zinc base palette with blue or purple accent
+- **User layout**: Top navbar with Logo, Search, My Requests, Admin (if admin), Login/Logout
+- **Admin layout**: Sidebar navigation for admin pages (dashboard, queue, settings)
+- **Responsive**: Mobile-first; top nav collapses to hamburger menu (shadcn `Sheet` as mobile drawer), admin sidebar collapses on mobile
+- **Typography**: Clean sans-serif, high contrast text on dark backgrounds
+
+### 5.3 Pages
 
 #### Public/Auth Pages
-- `/login` - Email + password login form
+- `/login` - Email + password login form (shadcn `Card` + `Input` + `Button`)
 - `/register` - Self-registration with email verification
 - `/confirm` - Email confirmation code entry
 
 #### User Pages (authenticated)
-- `/search` - Search bar + results grid (movie posters with title/year)
-  - Toggle between Movies and TV Shows
-  - Click a result to see detail and request button
-- `/search/:mediaType/:tmdbId` - Media detail page (poster, overview, year, cast)
-  - "Request" button (disabled if already requested)
-  - Shows existing request status if already in system
+- `/search` - Search with results grid
+  - Debounced search input (shadcn `Input` with `Command` combobox for suggestions)
+  - Movie/TV toggle (shadcn `Tabs`)
+  - Responsive poster grid: 2-col mobile, 3-col tablet, 4-5 col desktop
+  - Each result is a shadcn `Card` with poster image, title, year, media type badge
+- `/search/:mediaType/:id` - Media detail page
+  - Backdrop image hero (blurred, full-width)
+  - Poster + metadata sidebar (title, year, overview, genres)
+  - "Request" button (shadcn `Button`) - disabled if already requested, shows current status if exists
+  - Confirmation dialog (shadcn `Dialog`) before submitting
 - `/requests` - My Requests list
-  - Shows all user's requests with status badges
-  - Color-coded: blue=requested, orange=approved, yellow=downloading, green=complete, red=rejected
+  - Card list: poster thumbnail, title, year, status badge, requested date
+  - Status badges color-coded (shadcn `Badge`): blue=requested, orange=approved, yellow=downloading, green=complete, red=rejected
   - Sorted newest first
+  - Loading skeletons (shadcn `Skeleton`) while fetching
 
 #### Admin Pages (admin group)
-- `/admin` - Admin dashboard with request stats
-- `/admin/requests` - Request queue with status filter tabs
-  - Approve/reject buttons on each pending request
-  - Status update dropdown for approved/downloading items
-  - Admin note field
+- `/admin` - Dashboard
+  - Stat cards (shadcn `Card`): pending, approved, downloading, complete counts
+  - Recent requests table (shadcn `Table`) with quick actions
+- `/admin/requests` - Request queue
+  - Filter tabs by status (shadcn `Tabs`)
+  - Table view (shadcn `Table`) with sortable columns: title, user, type, date, status
+  - Inline approve/reject buttons (shadcn `Button`)
+  - Status update dropdown (shadcn `DropdownMenu` or `Select`) for approved/downloading items
+  - Admin note field per request
+  - Toast confirmation on actions (sonner)
 - `/admin/settings` - Integration settings
-  - Radarr: URL, API key, quality profile, root folder + test button
-  - Sonarr: URL, API key, quality profile, root folder + test button
+  - Radarr section: URL, API key, quality profile select, root folder select + test connection button with status indicator
+  - Sonarr section: same layout as Radarr
+  - SABnzbd section (stretch): URL, API key + test connection button
+  - Each section in a shadcn `Card` with save/test buttons
 
-### 5.3 Components
-- `SearchBar` - debounced search input
-- `MediaCard` - poster thumbnail with title, year, media type badge
-- `MediaDetail` - full detail view with request action
-- `RequestCard` - request with status badge and admin actions
-- `StatusBadge` - colored badge component for request statuses
-- `AdminRequestQueue` - filterable request list with bulk actions
-- `SettingsForm` - form for Radarr/Sonarr/TMDB connection config
-- `ProtectedRoute` - route wrapper checking auth
-- `AdminRoute` - route wrapper checking admin group
+### 5.4 Shared Components
+| Component | shadcn Base | Purpose |
+|-----------|-------------|---------|
+| `MediaCard` | `Card` | Poster thumbnail with title, year, media type badge |
+| `MediaDetail` | `Dialog` / page | Full detail view with backdrop hero and request action |
+| `RequestCard` | `Card` | Request with poster thumbnail, status badge, admin actions |
+| `StatusBadge` | `Badge` | Color-coded status indicator |
+| `SearchInput` | `Input` + `Command` | Debounced search with autocomplete |
+| `AdminRequestTable` | `Table` | Sortable, filterable request list |
+| `StatCard` | `Card` | Dashboard metric with label and count |
+| `SettingsSection` | `Card` | Integration config form with test button |
+| `NavBar` | custom | Top navigation with responsive mobile menu |
+| `AdminSidebar` | `Sheet` (mobile) | Sidebar navigation for admin pages |
+| `ProtectedRoute` | - | Route wrapper checking auth |
+| `AdminRoute` | - | Route wrapper checking admin group |
+| `LoadingSkeleton` | `Skeleton` | Loading placeholder for cards and tables |
 
 ---
 
