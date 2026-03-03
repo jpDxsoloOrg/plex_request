@@ -273,6 +273,6 @@ export const issues = {
   delete: (id: string) =>
     request<void>(`/issues/${id}`, { method: 'DELETE' }),
 
-  episodes: (sonarrId: number) =>
-    request<EpisodeInfo[]>(`/issues/episodes?sonarrId=${sonarrId}`),
+  episodes: (tvdbId: number) =>
+    request<EpisodeInfo[]>(`/issues/episodes?tvdbId=${tvdbId}`),
 };
