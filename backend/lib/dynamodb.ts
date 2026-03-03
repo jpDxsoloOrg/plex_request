@@ -69,6 +69,6 @@ export async function scan(params: ScanCommandInput) {
   return result.Items ?? [];
 }
 
-export const REQUESTS_TABLE = process.env.REQUESTS_TABLE ?? 'plex-request-api-dev-requests';
-export const SETTINGS_TABLE = process.env.SETTINGS_TABLE ?? 'plex-request-api-dev-settings';
-export const ISSUES_TABLE = process.env.ISSUES_TABLE ?? 'plex-request-api-dev-issues';
+export const REQUESTS_TABLE = process.env.REQUESTS_TABLE ?? 'plex-request-api-devtest-requests';
+export const SETTINGS_TABLE = process.env.SETTINGS_TABLE ?? 'plex-request-api-devtest-settings';
+export const ISSUES_TABLE = process.env.ISSUES_TABLE ?? 'plex-request-api-devtest-issues';

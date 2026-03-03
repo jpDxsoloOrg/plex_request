@@ -1,4 +1,4 @@
-name: Deploy to Dev
+name: Deploy
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   deploy-backend:
-    name: Deploy Backend (devtest)
+    name: Deploy Backend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,9 +31,10 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
 
   deploy-frontend:
-    name: Deploy Frontend (dev)
+    name: Deploy Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
