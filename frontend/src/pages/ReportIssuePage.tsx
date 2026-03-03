@@ -45,19 +45,19 @@ export function ReportIssuePage() {
     setSearching(true);
     try {
       const all = await searchApi.query(query, searchType);
-      // Filter to items that exist in the library
-      const inLibrary: MediaSearchResult[] = [];
-      for (const item of all.slice(0, 20)) {
-        try {
-          const check = await requestsApi.checkMedia(item.id, item.mediaType);
-          if (check.exists) {
-            inLibrary.push(item);
+      // Check all items in parallel against library cache
+      const candidates = all.slice(0, 10);
+      const checks = await Promise.all(
+        candidates.map(async (item) => {
+          try {
+            const check = await requestsApi.checkMedia(item.id, item.mediaType);
+            return check.exists ? item : null;
+          } catch {
+            return null;
           }
-        } catch {
-          // skip items we can't check
-        }
-      }
-      setResults(inLibrary);
+        })
+      );
+      setResults(checks.filter((item): item is MediaSearchResult => item !== null));
     } catch {
       toast.error('Search failed');
     } finally {
