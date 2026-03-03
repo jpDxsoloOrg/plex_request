@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Film, Tv, Send, Check, Loader2 } from 'lucide-react';
+import { useParams, useLocation } from 'react-router-dom';
+import { Film, Tv, Send, Check, Loader2, Library } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,26 +21,38 @@ import type { MediaSearchResult, MediaRequest, MediaType } from '@/types';
 
 export function MediaDetailPage() {
   const { mediaType, id } = useParams<{ mediaType: string; id: string }>();
+  const location = useLocation();
   const { user } = useAuth();
   const [media, setMedia] = useState<MediaSearchResult | null>(null);
   const [existingRequest, setExistingRequest] = useState<MediaRequest | null>(null);
+  const [libraryStatus, setLibraryStatus] = useState<{ exists: boolean; message?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const fetchMedia = useCallback(async () => {
     if (!mediaType || !id) return;
+
+    // Use media data passed via router state from search results
+    const stateMedia = (location.state as { media?: MediaSearchResult } | null)?.media;
+    if (stateMedia && String(stateMedia.id) === id) {
+      setMedia(stateMedia);
+      setLoading(false);
+      return;
+    }
+
+    // Fallback: search by title won't work with just an ID, so show not found
+    // This handles direct URL navigation without state
     try {
-      // Search by ID to get media details
       const results = await searchApi.query(id, mediaType as MediaType);
       const match = results.find((r) => String(r.id) === id);
-      setMedia(match ?? results[0] ?? null);
+      setMedia(match ?? null);
     } catch {
       setMedia(null);
     } finally {
       setLoading(false);
     }
-  }, [mediaType, id]);
+  }, [mediaType, id, location.state]);
 
   const checkExistingRequest = useCallback(async () => {
     if (!user) return;
@@ -55,10 +67,21 @@ export function MediaDetailPage() {
     }
   }, [user, id, mediaType]);
 
+  const checkLibrary = useCallback(async () => {
+    if (!id || !mediaType || !user) return;
+    try {
+      const result = await requestsApi.checkMedia(Number(id), mediaType as 'movie' | 'tv');
+      setLibraryStatus(result);
+    } catch {
+      // Ignore — non-critical check
+    }
+  }, [id, mediaType, user]);
+
   useEffect(() => {
     fetchMedia();
     checkExistingRequest();
-  }, [fetchMedia, checkExistingRequest]);
+    checkLibrary();
+  }, [fetchMedia, checkExistingRequest, checkLibrary]);
 
   const handleRequest = async () => {
     if (!media) return;
@@ -157,7 +180,12 @@ export function MediaDetailPage() {
           )}
 
           {/* Request action */}
-          {existingRequest ? (
+          {libraryStatus?.exists ? (
+            <div className="flex items-center gap-3 rounded-md bg-green-500/10 p-3 text-green-400">
+              <Library className="h-5 w-5 shrink-0" />
+              <p className="text-sm">{libraryStatus.message}</p>
+            </div>
+          ) : existingRequest ? (
             <div className="flex items-center gap-3">
               <Button disabled variant="outline">
                 <Check className="mr-2 h-4 w-4" />

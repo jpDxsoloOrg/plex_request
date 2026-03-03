@@ -28,6 +28,26 @@ export const handler = async (
       };
     }
 
+    // Fill in defaults from environment variables for services not yet saved
+    const ENV_DEFAULTS: { key: string; prefix: string }[] = [
+      { key: 'radarr', prefix: 'RADARR' },
+      { key: 'sonarr', prefix: 'SONARR' },
+      { key: 'sabnzbd', prefix: 'SABNZBD' },
+    ];
+
+    for (const { key, prefix } of ENV_DEFAULTS) {
+      if (!settingsMap[key]) {
+        const baseUrl = process.env[`${prefix}_BASE_URL`] ?? '';
+        const apiKey = process.env[`${prefix}_API_KEY`] ?? '';
+        settingsMap[key] = {
+          settingKey: key,
+          baseUrl,
+          apiKey: apiKey ? `${'*'.repeat(Math.max(0, apiKey.length - 4))}${apiKey.slice(-4)}` : '',
+          enabled: !!(baseUrl && apiKey),
+        };
+      }
+    }
+
     return success({ settings: settingsMap });
   } catch (error) {
     console.error('Get settings error:', error);

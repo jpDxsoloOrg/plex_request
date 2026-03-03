@@ -1,9 +1,8 @@
 service: plex-request-api
 
-frameworkVersion: '3'
+frameworkVersion: '4'
 
 plugins:
-  - serverless-plugin-typescript
   - serverless-offline
 
 provider:
@@ -12,7 +11,7 @@ provider:
   region: us-east-1
   stage: ${opt:stage, 'dev'}
   memorySize: 256
-  timeout: 30
+  timeout: 29
   environment:
     REQUESTS_TABLE: ${self:service}-${self:provider.stage}-requests
     SETTINGS_TABLE: ${self:service}-${self:provider.stage}-settings
@@ -49,9 +48,7 @@ provider:
   httpApi:
     cors:
       allowedOrigins:
-        - http://localhost:3000
-        - http://localhost:5173
-        - https://*.cloudfront.net
+        - '*'
       allowedHeaders:
         - Content-Type
         - Authorization
@@ -61,7 +58,14 @@ provider:
         - PUT
         - DELETE
         - OPTIONS
-      allowCredentials: true
+      allowCredentials: false
+    authorizers:
+      jwtAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: !Sub https://cognito-idp.${self:provider.region}.amazonaws.com/${CognitoUserPool}
+        audience:
+          - !Ref CognitoUserPoolClient
 
 custom:
   serverless-offline:
@@ -69,10 +73,6 @@ custom:
     noPrependStageInUrl: false
 
 functions:
-  # Auth - Lambda Authorizer
-  authorizer:
-    handler: functions/auth/authorizer.handler
-
   # Auth endpoints (public)
   authSignup:
     handler: functions/auth/signup.handler
@@ -110,8 +110,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   # Search (authenticated)
   search:
@@ -122,8 +120,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   # Requests (authenticated)
   createRequest:
@@ -134,8 +130,6 @@ functions:
           method: POST
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   getRequests:
     handler: functions/requests/list.handler
@@ -145,8 +139,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   getRequest:
     handler: functions/requests/get.handler
@@ -156,8 +148,24 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
+
+  checkMedia:
+    handler: functions/requests/check.handler
+    events:
+      - httpApi:
+          path: /requests/check
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  deleteRequest:
+    handler: functions/requests/delete.handler
+    events:
+      - httpApi:
+          path: /requests/{id}
+          method: DELETE
+          authorizer:
+            name: jwtAuthorizer
 
   # Admin requests (admin)
   adminGetRequests:
@@ -168,8 +176,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   adminUpdateRequestStatus:
     handler: functions/admin/requests/updateStatus.handler
@@ -179,8 +185,15 @@ functions:
           method: PUT
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
+
+  adminDeleteRequest:
+    handler: functions/admin/requests/delete.handler
+    events:
+      - httpApi:
+          path: /admin/requests/{id}
+          method: DELETE
+          authorizer:
+            name: jwtAuthorizer
 
   adminGetRequestStats:
     handler: functions/admin/requests/stats.handler
@@ -190,8 +203,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   # Admin settings (admin)
   adminGetSettings:
@@ -202,8 +213,6 @@ functions:
           method: GET
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   adminUpdateSetting:
     handler: functions/admin/settings/update.handler
@@ -213,8 +222,6 @@ functions:
           method: PUT
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
 
   adminTestConnection:
     handler: functions/admin/settings/testConnection.handler
@@ -224,8 +231,24 @@ functions:
           method: POST
           authorizer:
             name: jwtAuthorizer
-            type: jwt
-            id: !Ref HttpApiAuthorizerJwt
+
+  adminGetProfiles:
+    handler: functions/admin/settings/getProfilesAndFolders.profilesHandler
+    events:
+      - httpApi:
+          path: /admin/settings/{key}/profiles
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  adminGetFolders:
+    handler: functions/admin/settings/getProfilesAndFolders.foldersHandler
+    events:
+      - httpApi:
+          path: /admin/settings/{key}/folders
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
 
 resources:
   Resources:
@@ -325,19 +348,6 @@ resources:
         GroupName: admins
         UserPoolId: !Ref CognitoUserPool
         Description: Admin users with elevated privileges
-
-    # HTTP API JWT Authorizer
-    HttpApiAuthorizerJwt:
-      Type: AWS::ApiGatewayV2::Authorizer
-      Properties:
-        ApiId: !Ref HttpApi
-        AuthorizerType: JWT
-        IdentitySource: $request.header.Authorization
-        JwtConfiguration:
-          Audience:
-            - !Ref CognitoUserPoolClient
-          Issuer: !Sub https://cognito-idp.${self:provider.region}.amazonaws.com/${CognitoUserPool}
-        Name: jwtAuthorizer
 
     # S3 Bucket for Frontend
     FrontendBucket:

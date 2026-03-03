@@ -12,18 +12,41 @@ interface UpdateStatusBody {
   adminNote?: string;
 }
 
+async function getServiceSetting(key: string): Promise<IntegrationSetting> {
+  // Try DynamoDB first
+  const setting = await getItem({
+    TableName: SETTINGS_TABLE,
+    Key: { settingKey: key },
+  }) as IntegrationSetting | undefined;
+
+  if (setting?.baseUrl && setting.apiKey) {
+    return setting;
+  }
+
+  // Fall back to environment variables
+  const prefix = key.toUpperCase();
+  const baseUrl = process.env[`${prefix}_BASE_URL`] ?? '';
+  const apiKey = process.env[`${prefix}_API_KEY`] ?? '';
+
+  return {
+    settingKey: key,
+    baseUrl,
+    apiKey,
+    enabled: !!(baseUrl && apiKey),
+    qualityProfileId: setting?.qualityProfileId,
+    rootFolderPath: setting?.rootFolderPath,
+  };
+}
+
 async function handleApproval(request: MediaRequest): Promise<{ radarrId?: number; sonarrId?: number }> {
   if (request.mediaType === 'movie') {
-    const setting = await getItem({
-      TableName: SETTINGS_TABLE,
-      Key: { settingKey: 'radarr' },
-    }) as IntegrationSetting | undefined;
+    const setting = await getServiceSetting('radarr');
 
-    if (!setting?.enabled || !setting.baseUrl || !setting.apiKey) {
+    if (!setting.enabled || !setting.baseUrl || !setting.apiKey) {
       throw new Error('Radarr is not configured or disabled');
     }
     if (!setting.qualityProfileId || !setting.rootFolderPath) {
-      throw new Error('Radarr quality profile and root folder must be configured');
+      throw new Error('Radarr quality profile and root folder must be configured in Settings');
     }
 
     const config = { baseUrl: setting.baseUrl, apiKey: setting.apiKey };
@@ -38,16 +61,13 @@ async function handleApproval(request: MediaRequest): Promise<{ radarrId?: numbe
   }
 
   if (request.mediaType === 'tv') {
-    const setting = await getItem({
-      TableName: SETTINGS_TABLE,
-      Key: { settingKey: 'sonarr' },
-    }) as IntegrationSetting | undefined;
+    const setting = await getServiceSetting('sonarr');
 
-    if (!setting?.enabled || !setting.baseUrl || !setting.apiKey) {
+    if (!setting.enabled || !setting.baseUrl || !setting.apiKey) {
       throw new Error('Sonarr is not configured or disabled');
     }
     if (!setting.qualityProfileId || !setting.rootFolderPath) {
-      throw new Error('Sonarr quality profile and root folder must be configured');
+      throw new Error('Sonarr quality profile and root folder must be configured in Settings');
     }
 
     const config = { baseUrl: setting.baseUrl, apiKey: setting.apiKey };

@@ -31,10 +31,23 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/confirm" element={<ConfirmPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/search/:mediaType/:id" element={<MediaDetailPage />} />
-
             {/* Authenticated routes */}
+            <Route
+              path="/search"
+              element={
+                <ProtectedRoute>
+                  <SearchPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/search/:mediaType/:id"
+              element={
+                <ProtectedRoute>
+                  <MediaDetailPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/requests"
               element={

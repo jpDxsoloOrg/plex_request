@@ -10,7 +10,7 @@ interface MediaCardProps {
 
 export function MediaCard({ media }: MediaCardProps) {
   return (
-    <Link to={`/search/${media.mediaType}/${media.id}`}>
+    <Link to={`/search/${media.mediaType}/${media.id}`} state={{ media }}>
       <Card className="group overflow-hidden transition-colors hover:border-primary/50">
         <div className="relative aspect-[2/3] bg-muted">
           {media.posterUrl ? (

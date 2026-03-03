@@ -68,6 +68,13 @@ export async function addSeries(
   qualityProfileId: number,
   rootFolderPath: string
 ): Promise<SonarrSeries> {
+  // Check if series already exists in Sonarr
+  const allSeries = await sonarrFetch<SonarrSeries[]>(config, '/api/v3/series');
+  const existing = allSeries.find((s) => s.tvdbId === tvdbId);
+  if (existing) {
+    return existing;
+  }
+
   // Look up by TVDB ID to get full series details
   const results = await lookupSeries(config, `tvdb:${tvdbId}`);
   const series = results[0];
@@ -95,6 +102,10 @@ export async function addSeries(
 
 export async function getSeries(config: SonarrConfig, sonarrId: number): Promise<SonarrSeries> {
   return sonarrFetch<SonarrSeries>(config, `/api/v3/series/${sonarrId}`);
+}
+
+export async function getAllSeries(config: SonarrConfig): Promise<SonarrSeries[]> {
+  return sonarrFetch<SonarrSeries[]>(config, '/api/v3/series');
 }
 
 export async function getQualityProfiles(config: SonarrConfig): Promise<QualityProfile[]> {

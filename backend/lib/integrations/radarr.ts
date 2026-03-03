@@ -61,13 +61,23 @@ export async function lookupMovie(config: RadarrConfig, tmdbId: number): Promise
   return radarrFetch<RadarrMovie>(config, `/api/v3/movie/lookup/tmdb?tmdbId=${tmdbId}`);
 }
 
+export async function getMoviesByTmdbId(config: RadarrConfig, tmdbId: number): Promise<RadarrMovie[]> {
+  return radarrFetch<RadarrMovie[]>(config, `/api/v3/movie?tmdbId=${tmdbId}`);
+}
+
 export async function addMovie(
   config: RadarrConfig,
   tmdbId: number,
   qualityProfileId: number,
   rootFolderPath: string
 ): Promise<RadarrMovie> {
-  // First lookup the movie to get its full details
+  // Check if movie already exists in Radarr
+  const existing = await radarrFetch<RadarrMovie[]>(config, `/api/v3/movie?tmdbId=${tmdbId}`);
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  // Lookup the movie to get its full details, then add it
   const movie = await lookupMovie(config, tmdbId);
 
   return radarrFetch<RadarrMovie>(config, '/api/v3/movie', {

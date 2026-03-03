@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { admin } from '@/services/api';
 import { toast } from 'sonner';
-import type { IntegrationSetting } from '@/types';
-import { Save, Plug, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import type { IntegrationSetting, QualityProfile, RootFolder } from '@/types';
+import { Save, Plug, Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 
 interface ServiceFormProps {
   serviceKey: 'radarr' | 'sonarr';
@@ -27,7 +27,27 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const [profiles, setProfiles] = useState<QualityProfile[]>([]);
+  const [folders, setFolders] = useState<RootFolder[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
   const maskedKey = initial?.apiKey ?? '';
+
+  const loadOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const [p, f] = await Promise.all([
+        admin.settings.getQualityProfiles(serviceKey),
+        admin.settings.getRootFolders(serviceKey),
+      ]);
+      setProfiles(p);
+      setFolders(f);
+    } catch (err) {
+      toast.error(`Failed to load ${label} options: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -39,6 +59,7 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
         : await admin.settings.testConnection(serviceKey);
       if (result.connected) {
         setTestResult({ ok: true, message: `Connected! v${result.version}` });
+        loadOptions();
       } else {
         setTestResult({ ok: false, message: result.error ?? 'Connection failed' });
       }
@@ -54,7 +75,7 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
     try {
       await admin.settings.update(serviceKey, {
         baseUrl,
-        apiKey: apiKey || maskedKey,
+        apiKey: apiKey || undefined,
         qualityProfileId: qualityProfileId ? Number(qualityProfileId) : undefined,
         rootFolderPath: rootFolderPath || undefined,
         enabled,
@@ -67,6 +88,13 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (initial?.baseUrl && initial?.apiKey) {
+      loadOptions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Card>
@@ -100,21 +128,57 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-muted-foreground">Quality Profile ID</label>
-            <Input
-              type="number"
-              value={qualityProfileId}
-              onChange={(e) => setQualityProfileId(e.target.value)}
-              placeholder="e.g. 1"
-            />
+            <label className="mb-1 block text-sm text-muted-foreground">
+              Quality Profile
+              {loadingOptions && <Loader2 className="ml-1 inline h-3 w-3 animate-spin" />}
+            </label>
+            {profiles.length > 0 ? (
+              <select
+                value={qualityProfileId}
+                onChange={(e) => setQualityProfileId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&>option]:bg-background [&>option]:text-foreground"
+              >
+                <option value="">Select a profile...</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                type="number"
+                value={qualityProfileId}
+                onChange={(e) => setQualityProfileId(e.target.value)}
+                placeholder="Test connection to load profiles"
+              />
+            )}
           </div>
           <div>
-            <label className="mb-1 block text-sm text-muted-foreground">Root Folder Path</label>
-            <Input
-              value={rootFolderPath}
-              onChange={(e) => setRootFolderPath(e.target.value)}
-              placeholder="/movies or /tv"
-            />
+            <label className="mb-1 block text-sm text-muted-foreground">
+              Root Folder
+              {loadingOptions && <Loader2 className="ml-1 inline h-3 w-3 animate-spin" />}
+            </label>
+            {folders.length > 0 ? (
+              <select
+                value={rootFolderPath}
+                onChange={(e) => setRootFolderPath(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&>option]:bg-background [&>option]:text-foreground"
+              >
+                <option value="">Select a folder...</option>
+                {folders.map((f) => (
+                  <option key={f.id} value={f.path}>
+                    {f.path} ({(f.freeSpace / 1073741824).toFixed(1)} GB free)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={rootFolderPath}
+                onChange={(e) => setRootFolderPath(e.target.value)}
+                placeholder="Test connection to load folders"
+              />
+            )}
           </div>
         </div>
 
@@ -154,6 +218,16 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
             )}
             Test Connection
           </Button>
+          {(profiles.length > 0 || folders.length > 0) && (
+            <Button variant="outline" onClick={loadOptions} disabled={loadingOptions}>
+              {loadingOptions ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh Options
+            </Button>
+          )}
           <Button onClick={handleSave} disabled={saving || !baseUrl}>
             {saving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

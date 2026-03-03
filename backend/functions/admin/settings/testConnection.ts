@@ -23,24 +23,30 @@ export const handler = async (
 
   try {
     // Allow testing with body params (for testing before saving) or from stored settings
-    let baseUrl: string;
-    let apiKey: string;
+    let baseUrl = '';
+    let apiKey = '';
 
     if (event.body) {
       const body = JSON.parse(event.body) as { baseUrl?: string; apiKey?: string };
       baseUrl = body.baseUrl ?? '';
       apiKey = body.apiKey ?? '';
-    } else {
+    }
+
+    // If no explicit params, try DynamoDB then env vars
+    if (!baseUrl || !apiKey) {
       const setting = await getItem({
         TableName: SETTINGS_TABLE,
         Key: { settingKey: key },
       }) as IntegrationSetting | undefined;
 
-      if (!setting) {
-        return badRequest(`${key} is not configured`);
+      if (setting?.baseUrl && setting.apiKey) {
+        baseUrl = baseUrl || setting.baseUrl;
+        apiKey = apiKey || setting.apiKey;
+      } else {
+        const prefix = key.toUpperCase();
+        baseUrl = baseUrl || (process.env[`${prefix}_BASE_URL`] ?? '');
+        apiKey = apiKey || (process.env[`${prefix}_API_KEY`] ?? '');
       }
-      baseUrl = setting.baseUrl;
-      apiKey = setting.apiKey;
     }
 
     if (!baseUrl || !apiKey) {

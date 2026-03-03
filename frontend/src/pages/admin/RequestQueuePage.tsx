@@ -19,6 +19,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 
 const TABS: { value: string; label: string }[] = [
@@ -40,6 +41,7 @@ function RequestRow({
   const [expanded, setExpanded] = useState(false);
   const [adminNote, setAdminNote] = useState(request.adminNote ?? '');
   const [updating, setUpdating] = useState<RequestStatus | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const updateStatus = async (status: RequestStatus) => {
     setUpdating(status);
@@ -51,6 +53,19 @@ function RequestRow({
       toast.error(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await admin.requests.delete(request.requestId);
+      toast.success('Request deleted');
+      onStatusChange();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -153,6 +168,19 @@ function RequestRow({
                 Complete
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-red-400 hover:bg-red-500/10 hover:text-red-400"
+              onClick={handleDelete}
+              disabled={isDeleting || updating !== null}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>

@@ -92,16 +92,34 @@ export const requests = {
       body: JSON.stringify(data),
     }),
 
-  list: () => request<MediaRequest[]>('/requests'),
+  list: async () => {
+    const data = await request<{ requests: MediaRequest[] }>('/requests');
+    return data.requests;
+  },
 
   get: (id: string) => request<MediaRequest>(`/requests/${id}`),
+
+  delete: (id: string) =>
+    request<{ message: string }>(`/requests/${id}`, { method: 'DELETE' }),
+
+  checkMedia: (tmdbId: number, mediaType: 'movie' | 'tv') =>
+    request<{ exists: boolean; hasFile?: boolean; message?: string }>(
+      `/requests/check?tmdbId=${tmdbId}&mediaType=${mediaType}`
+    ),
 };
 
 // Admin
 export const admin = {
   requests: {
-    list: (status?: RequestStatus) =>
-      request<MediaRequest[]>(`/admin/requests${status ? `?status=${status}` : ''}`),
+    list: async (status?: RequestStatus) => {
+      const data = await request<{ requests: MediaRequest[] }>(
+        `/admin/requests${status ? `?status=${status}` : ''}`
+      );
+      return data.requests;
+    },
+
+    delete: (id: string) =>
+      request<{ message: string }>(`/admin/requests/${id}`, { method: 'DELETE' }),
 
     updateStatus: (id: string, status: RequestStatus, adminNote?: string) =>
       request<MediaRequest>(`/admin/requests/${id}/status`, {
@@ -109,7 +127,16 @@ export const admin = {
         body: JSON.stringify({ status, adminNote }),
       }),
 
-    stats: () => request<DashboardStats>('/admin/requests/stats'),
+    stats: async () => {
+      const data = await request<{ counts: Record<string, number>; total: number; recentRequests: MediaRequest[] }>(
+        '/admin/requests/stats'
+      );
+      return {
+        counts: data.counts as DashboardStats['counts'],
+        total: data.total,
+        recentPending: data.recentRequests,
+      };
+    },
   },
 
   settings: {
@@ -123,8 +150,8 @@ export const admin = {
 
     testConnection: (key: string, data?: { baseUrl: string; apiKey: string }) =>
       request<TestConnectionResult>(
-        `/admin/settings/${key}/test`,
-        data ? { method: 'POST', body: JSON.stringify(data) } : undefined
+        `/admin/settings/test/${key}`,
+        { method: 'POST', body: data ? JSON.stringify(data) : '{}' }
       ),
 
     getQualityProfiles: (key: 'radarr' | 'sonarr') =>

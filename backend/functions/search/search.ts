@@ -114,7 +114,7 @@ export const handler = async (
       ? await searchRadarr(query, config.baseUrl, config.apiKey)
       : await searchSonarr(query, config.baseUrl, config.apiKey);
 
-    return success({ results, total: results.length });
+    return success(results);
   } catch (error) {
     console.error('Search error:', error);
     return serverError('Search failed. The media service may be unreachable.');
