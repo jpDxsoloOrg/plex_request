@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { getItem, SETTINGS_TABLE } from '../../lib/dynamodb';
-import { success, badRequest, serverError } from '../../lib/response';
+import { success, badRequest } from '../../lib/response';
 import * as radarr from '../../lib/integrations/radarr';
 import * as sonarr from '../../lib/integrations/sonarr';
 import type { IntegrationSetting } from '../../types';
