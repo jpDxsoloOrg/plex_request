@@ -43,6 +43,21 @@ export const VALID_STATUS_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = 
   rejected: [],
 };
 
+/** DynamoDB LibraryTable item */
+export interface LibraryItem {
+  pk: string;
+  mediaType: MediaType;
+  title: string;
+  year: number;
+  tmdbId?: number;
+  radarrId?: number;
+  tvdbId?: number;
+  sonarrId?: number;
+  hasFile: boolean;
+  syncedAt: string;
+  ttl?: number;
+}
+
 /** Media issue types */
 export type IssueType = 'wrong_language' | 'corrupt' | 'missing_subtitles' | 'wrong_content' | 'other';
 export type IssueStatus = 'open' | 'acknowledged' | 'resolved';

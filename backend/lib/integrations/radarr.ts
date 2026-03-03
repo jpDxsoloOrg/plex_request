@@ -96,6 +96,10 @@ export async function addMovie(
   });
 }
 
+export async function getAllMovies(config: RadarrConfig): Promise<RadarrMovie[]> {
+  return radarrFetch<RadarrMovie[]>(config, '/api/v3/movie');
+}
+
 export async function getMovie(config: RadarrConfig, radarrId: number): Promise<RadarrMovie> {
   return radarrFetch<RadarrMovie>(config, `/api/v3/movie/${radarrId}`);
 }

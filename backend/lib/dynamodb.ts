@@ -7,12 +7,14 @@ import {
   DeleteCommand,
   QueryCommand,
   ScanCommand,
+  BatchWriteCommand,
   type GetCommandInput,
   type PutCommandInput,
   type UpdateCommandInput,
   type DeleteCommandInput,
   type QueryCommandInput,
   type ScanCommandInput,
+  type BatchWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 
 const isOffline = process.env.IS_OFFLINE === 'true';
@@ -69,6 +71,11 @@ export async function scan(params: ScanCommandInput) {
   return result.Items ?? [];
 }
 
+export async function batchWrite(params: BatchWriteCommandInput) {
+  await docClient.send(new BatchWriteCommand(params));
+}
+
 export const REQUESTS_TABLE = process.env.REQUESTS_TABLE ?? 'plex-request-api-devtest-requests';
 export const SETTINGS_TABLE = process.env.SETTINGS_TABLE ?? 'plex-request-api-devtest-settings';
 export const ISSUES_TABLE = process.env.ISSUES_TABLE ?? 'plex-request-api-devtest-issues';
+export const LIBRARY_TABLE = process.env.LIBRARY_TABLE ?? 'plex-request-api-devtest-library';

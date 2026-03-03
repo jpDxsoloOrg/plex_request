@@ -16,6 +16,7 @@ provider:
     REQUESTS_TABLE: ${self:service}-${self:provider.stage}-requests
     SETTINGS_TABLE: ${self:service}-${self:provider.stage}-settings
     ISSUES_TABLE: ${self:service}-${self:provider.stage}-issues
+    LIBRARY_TABLE: ${self:service}-${self:provider.stage}-library
     COGNITO_USER_POOL_ID: !Ref CognitoUserPool
     COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
     RADARR_BASE_URL: ${env:RADARR_BASE_URL, 'http://jpcoder.duckdns.org:7878'}
@@ -36,12 +37,14 @@ provider:
             - dynamodb:DeleteItem
             - dynamodb:Query
             - dynamodb:Scan
+            - dynamodb:BatchWriteItem
           Resource:
             - !GetAtt RequestsTable.Arn
             - !Join ['/', [!GetAtt RequestsTable.Arn, 'index/*']]
             - !GetAtt SettingsTable.Arn
             - !GetAtt IssuesTable.Arn
             - !Join ['/', [!GetAtt IssuesTable.Arn, 'index/*']]
+            - !GetAtt LibraryTable.Arn
         - Effect: Allow
           Action:
             - cognito-idp:AdminGetUser
@@ -296,6 +299,16 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Library sync (scheduled)
+  syncLibrary:
+    handler: functions/library/sync.handler
+    timeout: 120
+    memorySize: 512
+    events:
+      - schedule:
+          rate: rate(15 minutes)
+          enabled: true
+
   # Admin issues
   adminListIssues:
     handler: functions/admin/issues/list.handler
@@ -408,6 +421,21 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
+
+    LibraryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.LIBRARY_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
 
     # Cognito User Pool
     CognitoUserPool:

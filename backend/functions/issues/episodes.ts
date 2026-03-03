@@ -1,8 +1,7 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { getItem, SETTINGS_TABLE } from '../../lib/dynamodb';
+import { getItem, SETTINGS_TABLE, LIBRARY_TABLE } from '../../lib/dynamodb';
 import { success, badRequest, serverError } from '../../lib/response';
-import * as sonarr from '../../lib/integrations/sonarr';
-import type { IntegrationSetting } from '../../types';
+import type { IntegrationSetting, LibraryItem } from '../../types';
 
 interface SonarrEpisode {
   seasonNumber: number;
@@ -41,15 +40,18 @@ export const handler = async (
       return serverError('Sonarr is not configured');
     }
 
-    // Find the Sonarr internal series ID by matching tvdbId
-    const allSeries = await sonarr.getAllSeries(config);
-    const series = allSeries.find((s) => s.tvdbId === Number(tvdbId));
-    if (!series) {
+    // Resolve tvdbId → Sonarr internal seriesId from library cache
+    const cacheItem = await getItem({
+      TableName: LIBRARY_TABLE,
+      Key: { pk: `tv#${tvdbId}` },
+    }) as LibraryItem | undefined;
+
+    if (!cacheItem?.sonarrId) {
       return success([]);
     }
 
     const response = await fetch(
-      `${config.baseUrl}/api/v3/episode?seriesId=${series.id}`,
+      `${config.baseUrl}/api/v3/episode?seriesId=${cacheItem.sonarrId}`,
       { headers: { 'X-Api-Key': config.apiKey } }
     );
 
