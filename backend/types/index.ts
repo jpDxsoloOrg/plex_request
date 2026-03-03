@@ -42,3 +42,28 @@ export const VALID_STATUS_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = 
   complete: [],
   rejected: [],
 };
+
+/** Media issue types */
+export type IssueType = 'wrong_language' | 'corrupt' | 'missing_subtitles' | 'wrong_content' | 'other';
+export type IssueStatus = 'open' | 'acknowledged' | 'resolved';
+
+/** DynamoDB MediaIssues table item */
+export interface MediaIssue {
+  issueId: string;
+  userId: string;
+  userName: string;
+  mediaType: MediaType;
+  tmdbId: number;
+  title: string;
+  year: string;
+  posterPath: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  episodeTitle?: string;
+  issueType: IssueType;
+  description?: string;
+  status: IssueStatus;
+  adminNote?: string;
+  reportedAt: string;
+  updatedAt: string;
+}

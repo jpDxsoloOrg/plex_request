@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, Settings } from 'lucide-react';
+import { LayoutDashboard, ListTodo, AlertTriangle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const links = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/requests', icon: ListTodo, label: 'Request Queue' },
+  { to: '/admin/issues', icon: AlertTriangle, label: 'Issues' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 

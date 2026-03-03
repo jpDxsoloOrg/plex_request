@@ -15,6 +15,7 @@ provider:
   environment:
     REQUESTS_TABLE: ${self:service}-${self:provider.stage}-requests
     SETTINGS_TABLE: ${self:service}-${self:provider.stage}-settings
+    ISSUES_TABLE: ${self:service}-${self:provider.stage}-issues
     COGNITO_USER_POOL_ID: !Ref CognitoUserPool
     COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
     RADARR_BASE_URL: ${env:RADARR_BASE_URL, 'http://jpcoder.duckdns.org:7878'}
@@ -39,6 +40,8 @@ provider:
             - !GetAtt RequestsTable.Arn
             - !Join ['/', [!GetAtt RequestsTable.Arn, 'index/*']]
             - !GetAtt SettingsTable.Arn
+            - !GetAtt IssuesTable.Arn
+            - !Join ['/', [!GetAtt IssuesTable.Arn, 'index/*']]
         - Effect: Allow
           Action:
             - cognito-idp:AdminGetUser
@@ -256,6 +259,71 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Issues (authenticated user)
+  createIssue:
+    handler: functions/issues/create.handler
+    events:
+      - httpApi:
+          path: /issues
+          method: POST
+          authorizer:
+            name: jwtAuthorizer
+
+  listIssues:
+    handler: functions/issues/list.handler
+    events:
+      - httpApi:
+          path: /issues
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  deleteIssue:
+    handler: functions/issues/delete.handler
+    events:
+      - httpApi:
+          path: /issues/{id}
+          method: DELETE
+          authorizer:
+            name: jwtAuthorizer
+
+  getEpisodes:
+    handler: functions/issues/episodes.handler
+    events:
+      - httpApi:
+          path: /issues/episodes
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  # Admin issues
+  adminListIssues:
+    handler: functions/admin/issues/list.handler
+    events:
+      - httpApi:
+          path: /admin/issues
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  adminUpdateIssueStatus:
+    handler: functions/admin/issues/updateStatus.handler
+    events:
+      - httpApi:
+          path: /admin/issues/{id}/status
+          method: PUT
+          authorizer:
+            name: jwtAuthorizer
+
+  adminDeleteIssue:
+    handler: functions/admin/issues/delete.handler
+    events:
+      - httpApi:
+          path: /admin/issues/{id}
+          method: DELETE
+          authorizer:
+            name: jwtAuthorizer
+
 resources:
   Resources:
     # DynamoDB Tables
@@ -305,6 +373,41 @@ resources:
         KeySchema:
           - AttributeName: settingKey
             KeyType: HASH
+
+    IssuesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.ISSUES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: issueId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: reportedAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: issueId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIssueIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: reportedAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: StatusIssueIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: reportedAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     # Cognito User Pool
     CognitoUserPool:

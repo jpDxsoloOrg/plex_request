@@ -1,12 +1,15 @@
 import type {
   MediaRequest,
   MediaSearchResult,
+  MediaIssue,
+  EpisodeInfo,
   DashboardStats,
   IntegrationSetting,
   TestConnectionResult,
   QualityProfile,
   RootFolder,
   RequestStatus,
+  IssueStatus,
   User,
 } from '@/types';
 
@@ -223,4 +226,53 @@ export const admin = {
     getRootFolders: (key: 'radarr' | 'sonarr') =>
       request<RootFolder[]>(`/admin/settings/${key}/folders`),
   },
+
+  issues: {
+    list: async (status?: IssueStatus) => {
+      const data = await request<{ issues: MediaIssue[] }>(
+        `/admin/issues${status ? `?status=${status}` : ''}`
+      );
+      return data.issues;
+    },
+
+    updateStatus: (id: string, status: IssueStatus, adminNote?: string) =>
+      request<MediaIssue>(`/admin/issues/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status, adminNote }),
+      }),
+
+    delete: (id: string) =>
+      request<void>(`/admin/issues/${id}`, { method: 'DELETE' }),
+  },
+};
+
+// Issues (user)
+export const issues = {
+  create: (data: {
+    mediaType: 'movie' | 'tv';
+    tmdbId: number;
+    title: string;
+    year: string;
+    posterPath: string;
+    seasonNumber?: number;
+    episodeNumber?: number;
+    episodeTitle?: string;
+    issueType: string;
+    description?: string;
+  }) =>
+    request<MediaIssue>('/issues', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: async () => {
+    const data = await request<{ issues: MediaIssue[] }>('/issues');
+    return data.issues;
+  },
+
+  delete: (id: string) =>
+    request<void>(`/issues/${id}`, { method: 'DELETE' }),
+
+  episodes: (sonarrId: number) =>
+    request<EpisodeInfo[]>(`/issues/episodes?sonarrId=${sonarrId}`),
 };

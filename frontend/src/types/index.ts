@@ -80,3 +80,36 @@ export interface User {
   email: string;
   groups: string[];
 }
+
+/** Media issue types */
+export type IssueType = 'wrong_language' | 'corrupt' | 'missing_subtitles' | 'wrong_content' | 'other';
+export type IssueStatus = 'open' | 'acknowledged' | 'resolved';
+
+/** Media issue */
+export interface MediaIssue {
+  issueId: string;
+  userId: string;
+  userName: string;
+  mediaType: MediaType;
+  tmdbId: number;
+  title: string;
+  year: string;
+  posterPath: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  episodeTitle?: string;
+  issueType: IssueType;
+  description?: string;
+  status: IssueStatus;
+  adminNote?: string;
+  reportedAt: string;
+  updatedAt: string;
+}
+
+/** Episode info from Sonarr */
+export interface EpisodeInfo {
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  hasFile: boolean;
+}

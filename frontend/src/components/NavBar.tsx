@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Film, Search, List, Shield, LogIn, LogOut, Menu } from 'lucide-react';
+import { Film, Search, List, AlertTriangle, Shield, LogIn, LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
@@ -20,14 +20,24 @@ function NavLinks({ onClick }: { onClick?: () => void }) {
         Search
       </Link>
       {user && (
-        <Link
-          to="/requests"
-          className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-          onClick={onClick}
-        >
-          <List className="h-4 w-4" />
-          My Requests
-        </Link>
+        <>
+          <Link
+            to="/requests"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+            onClick={onClick}
+          >
+            <List className="h-4 w-4" />
+            My Requests
+          </Link>
+          <Link
+            to="/report-issue"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+            onClick={onClick}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            Report Issue
+          </Link>
+        </>
       )}
       {isAdmin && (
         <Link
