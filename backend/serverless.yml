@@ -23,6 +23,7 @@ provider:
     SONARR_API_KEY: ${env:SONARR_API_KEY, ''}
     SABNZBD_BASE_URL: ${env:SABNZBD_BASE_URL, 'http://jpcoder.duckdns.org:38080'}
     SABNZBD_API_KEY: ${env:SABNZBD_API_KEY, ''}
+    SENDER_EMAIL: ${env:SENDER_EMAIL, 'noreply@jpdxsolo.com'}
   iam:
     role:
       statements:
@@ -45,6 +46,11 @@ provider:
             - cognito-idp:AdminAddUserToGroup
             - cognito-idp:ListUsers
           Resource: !GetAtt CognitoUserPool.Arn
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "arn:aws:ses:us-east-1:435238036810:identity/*"
   httpApi:
     cors:
       allowedOrigins:

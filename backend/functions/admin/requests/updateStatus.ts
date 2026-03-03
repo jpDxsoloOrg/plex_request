@@ -6,6 +6,7 @@ import * as radarr from '../../../lib/integrations/radarr';
 import * as sonarr from '../../../lib/integrations/sonarr';
 import type { MediaRequest, RequestStatus, IntegrationSetting } from '../../../types';
 import { VALID_STATUS_TRANSITIONS as transitions } from '../../../types';
+import { sendStatusChangeEmail } from '../../../lib/email';
 
 interface UpdateStatusBody {
   status: RequestStatus;
@@ -185,6 +186,19 @@ export const handler = async (
       ExpressionAttributeValues: expressionValues,
       ReturnValues: 'ALL_NEW',
     });
+
+    // Send email notification (non-blocking — failure doesn't affect the response)
+    try {
+      await sendStatusChangeEmail({
+        recipientEmail: request.userName,
+        title: request.title,
+        mediaType: request.mediaType,
+        newStatus: body.status,
+        adminNote: body.adminNote,
+      });
+    } catch (emailError) {
+      console.error('Failed to send status change email:', emailError);
+    }
 
     return success(updated);
   } catch (error) {
