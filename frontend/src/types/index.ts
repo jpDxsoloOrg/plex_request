@@ -17,6 +17,7 @@ export interface MediaRequest {
   posterPath: string;
   status: RequestStatus;
   adminNote?: string;
+  seasons?: number[];
   radarrId?: number;
   sonarrId?: number;
   requestedAt: string;
@@ -31,6 +32,8 @@ export interface MediaSearchResult {
   overview: string;
   posterUrl: string;
   mediaType: MediaType;
+  seasonCount?: number;
+  seasons?: Array<{ seasonNumber: number }>;
 }
 
 /** Integration setting (API keys masked in responses) */

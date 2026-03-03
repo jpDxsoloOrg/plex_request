@@ -10,6 +10,8 @@ interface SearchResult {
   overview: string;
   posterUrl: string;
   mediaType: MediaType;
+  seasonCount?: number;
+  seasons?: Array<{ seasonNumber: number }>;
 }
 
 async function getServiceConfig(key: string): Promise<{ baseUrl: string; apiKey: string }> {
@@ -76,16 +78,23 @@ async function searchSonarr(query: string, baseUrl: string, apiKey: string): Pro
     overview: string;
     remotePoster?: string;
     images?: Array<{ coverType: string; remoteUrl: string }>;
+    seasons?: Array<{ seasonNumber: number; monitored: boolean }>;
   }>;
 
-  return series.map((show) => ({
-    id: show.tvdbId,
-    title: show.title,
-    year: String(show.year),
-    overview: show.overview ?? '',
-    posterUrl: show.remotePoster ?? show.images?.find((img) => img.coverType === 'poster')?.remoteUrl ?? '',
-    mediaType: 'tv' as const,
-  }));
+  return series.map((show) => {
+    const allSeasons = show.seasons ?? [];
+    const regularSeasons = allSeasons.filter((s) => s.seasonNumber > 0);
+    return {
+      id: show.tvdbId,
+      title: show.title,
+      year: String(show.year),
+      overview: show.overview ?? '',
+      posterUrl: show.remotePoster ?? show.images?.find((img) => img.coverType === 'poster')?.remoteUrl ?? '',
+      mediaType: 'tv' as const,
+      seasonCount: regularSeasons.length,
+      seasons: regularSeasons.map((s) => ({ seasonNumber: s.seasonNumber })),
+    };
+  });
 }
 
 export const handler = async (

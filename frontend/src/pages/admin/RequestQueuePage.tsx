@@ -102,8 +102,16 @@ function RequestRow({
                 <StatusBadge status={request.status} />
               </div>
               <p className="text-sm text-muted-foreground">
-                {request.year} &middot; {request.mediaType === 'movie' ? 'Movie' : 'TV'} &middot;{' '}
-                {request.userName} &middot; {date}
+                {request.year} &middot; {request.mediaType === 'movie' ? 'Movie' : 'TV'}
+                {request.mediaType === 'tv' && (
+                  <span>
+                    {' '}&middot;{' '}
+                    {request.seasons
+                      ? `S${request.seasons.join(', S')}`
+                      : 'All Seasons'}
+                  </span>
+                )}
+                {' '}&middot; {request.userName} &middot; {date}
               </p>
             </div>
           </div>

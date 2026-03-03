@@ -29,6 +29,8 @@ export function MediaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectAllSeasons, setSelectAllSeasons] = useState(true);
+  const [selectedSeasons, setSelectedSeasons] = useState<Set<number>>(new Set());
 
   const fetchMedia = useCallback(async () => {
     if (!mediaType || !id) return;
@@ -83,10 +85,15 @@ export function MediaDetailPage() {
     checkLibrary();
   }, [fetchMedia, checkExistingRequest, checkLibrary]);
 
+  const isTvWithSeasons = media?.mediaType === 'tv' && media.seasons && media.seasons.length > 0;
+
   const handleRequest = async () => {
     if (!media) return;
     setRequesting(true);
     try {
+      const seasons = isTvWithSeasons && !selectAllSeasons
+        ? [...selectedSeasons].sort((a, b) => a - b)
+        : undefined;
       const req = await requestsApi.create({
         mediaType: media.mediaType,
         tmdbId: media.id,
@@ -94,6 +101,7 @@ export function MediaDetailPage() {
         year: media.year,
         overview: media.overview,
         posterPath: media.posterUrl,
+        seasons,
       });
       setExistingRequest(req);
       setDialogOpen(false);
@@ -208,11 +216,62 @@ export function MediaDetailPage() {
                     Request &quot;{media.title}&quot; ({media.year}) to be added to Plex?
                   </DialogDescription>
                 </DialogHeader>
+
+                {isTvWithSeasons && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Seasons</span>
+                      <Button
+                        size="sm"
+                        variant={selectAllSeasons ? 'default' : 'outline'}
+                        onClick={() => {
+                          setSelectAllSeasons(!selectAllSeasons);
+                          if (!selectAllSeasons) {
+                            setSelectedSeasons(new Set());
+                          }
+                        }}
+                      >
+                        {selectAllSeasons ? 'All Seasons' : 'Select Seasons'}
+                      </Button>
+                    </div>
+
+                    {!selectAllSeasons && (
+                      <div className="flex flex-wrap gap-2">
+                        {media.seasons!.map((s) => {
+                          const selected = selectedSeasons.has(s.seasonNumber);
+                          return (
+                            <Button
+                              key={s.seasonNumber}
+                              size="sm"
+                              variant={selected ? 'default' : 'outline'}
+                              className="min-w-[4rem]"
+                              onClick={() => {
+                                const next = new Set(selectedSeasons);
+                                if (selected) {
+                                  next.delete(s.seasonNumber);
+                                } else {
+                                  next.add(s.seasonNumber);
+                                }
+                                setSelectedSeasons(next);
+                              }}
+                            >
+                              S{s.seasonNumber}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleRequest} disabled={requesting}>
+                  <Button
+                    onClick={handleRequest}
+                    disabled={requesting || (isTvWithSeasons && !selectAllSeasons && selectedSeasons.size === 0)}
+                  >
                     {requesting ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (

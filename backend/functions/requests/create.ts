@@ -12,6 +12,7 @@ interface CreateRequestBody {
   year: string;
   overview: string;
   posterPath: string;
+  seasons?: number[];
 }
 
 export const handler = async (
@@ -70,6 +71,13 @@ export const handler = async (
       return conflict('This media has already been requested');
     }
 
+    // Validate seasons if provided
+    if (body.seasons !== undefined) {
+      if (!Array.isArray(body.seasons) || body.seasons.some((s) => !Number.isInteger(s) || s < 1)) {
+        return badRequest('seasons must be an array of positive integers');
+      }
+    }
+
     const now = new Date().toISOString();
     const request: MediaRequest = {
       requestId: uuidv4(),
@@ -82,6 +90,7 @@ export const handler = async (
       overview: body.overview ?? '',
       posterPath: body.posterPath ?? '',
       status: 'requested',
+      ...(body.seasons?.length ? { seasons: body.seasons } : {}),
       requestedAt: now,
       updatedAt: now,
     };

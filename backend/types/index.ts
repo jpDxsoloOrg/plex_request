@@ -17,6 +17,7 @@ export interface MediaRequest {
   posterPath: string;
   status: RequestStatus;
   adminNote?: string;
+  seasons?: number[];
   radarrId?: number;
   sonarrId?: number;
   requestedAt: string;

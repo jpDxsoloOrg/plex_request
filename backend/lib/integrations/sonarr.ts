@@ -66,7 +66,8 @@ export async function addSeries(
   config: SonarrConfig,
   tvdbId: number,
   qualityProfileId: number,
-  rootFolderPath: string
+  rootFolderPath: string,
+  monitoredSeasons?: number[]
 ): Promise<SonarrSeries> {
   // Check if series already exists in Sonarr
   const allSeries = await sonarrFetch<SonarrSeries[]>(config, '/api/v3/series');
@@ -92,7 +93,12 @@ export async function addSeries(
       rootFolderPath,
       monitored: true,
       seasonFolder: true,
-      seasons: series.seasons?.map((s) => ({ ...s, monitored: true })) ?? [],
+      seasons: series.seasons?.map((s) => ({
+        ...s,
+        monitored: monitoredSeasons
+          ? monitoredSeasons.includes(s.seasonNumber)
+          : true,
+      })) ?? [],
       addOptions: {
         searchForMissingEpisodes: true,
       },

@@ -82,7 +82,8 @@ async function handleApproval(request: MediaRequest): Promise<{ radarrId?: numbe
       config,
       results[0].tvdbId,
       setting.qualityProfileId,
-      setting.rootFolderPath
+      setting.rootFolderPath,
+      request.seasons
     );
 
     return { sonarrId: series.id };

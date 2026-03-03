@@ -37,6 +37,14 @@ export function RequestCard({ request, actions }: RequestCardProps) {
             <h3 className="font-medium">{request.title}</h3>
             <p className="text-sm text-muted-foreground">
               {request.year} &middot; {request.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+              {request.mediaType === 'tv' && (
+                <span>
+                  {' '}&middot;{' '}
+                  {request.seasons
+                    ? `Seasons ${request.seasons.join(', ')}`
+                    : 'All Seasons'}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">

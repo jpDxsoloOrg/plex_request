@@ -148,6 +148,7 @@ export const requests = {
     year: string;
     overview: string;
     posterPath: string;
+    seasons?: number[];
   }) =>
     request<MediaRequest>('/requests', {
       method: 'POST',
