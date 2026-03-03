@@ -5,6 +5,7 @@ import { RequestSkeleton } from '@/components/LoadingSkeleton';
 import { Pagination } from '@/components/Pagination';
 import { Button } from '@/components/ui/button';
 import { requests as requestsApi } from '@/services/api';
+import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import type { MediaRequest } from '@/types';
 import { Search, InboxIcon, Trash2, Loader2 } from 'lucide-react';
@@ -30,6 +31,8 @@ export function RequestsPage() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  usePolling(fetchRequests, 5 * 60 * 1000);
 
   const handleDelete = async (requestId: string) => {
     setDeleting(requestId);

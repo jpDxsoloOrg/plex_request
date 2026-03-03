@@ -16,6 +16,37 @@ function getToken(): string | null {
   return localStorage.getItem('idToken');
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return false;
+    const tokens = (await res.json()) as { idToken: string; accessToken: string };
+    localStorage.setItem('idToken', tokens.idToken);
+    localStorage.setItem('accessToken', tokens.accessToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function forceLogout(): never {
+  localStorage.removeItem('idToken');
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  window.location.href = '/login?expired=true';
+  throw new Error('Session expired');
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -29,6 +60,37 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { ...headers, ...options?.headers },
   });
+
+  if (response.status === 401 && token) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = tryRefreshToken().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+
+    const refreshed = await (refreshPromise ?? Promise.resolve(false));
+    if (refreshed) {
+      const newToken = getToken();
+      const retryHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (newToken) {
+        retryHeaders['Authorization'] = `Bearer ${newToken}`;
+      }
+      const retry = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: { ...retryHeaders, ...options?.headers },
+      });
+      if (retry.ok) {
+        if (retry.status === 204) return undefined as T;
+        return retry.json() as Promise<T>;
+      }
+    }
+
+    forceLogout();
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: response.statusText }));

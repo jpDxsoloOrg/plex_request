@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { RequestSkeleton } from '@/components/LoadingSkeleton';
 import { Pagination } from '@/components/Pagination';
 import { admin } from '@/services/api';
+import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
 import type { MediaRequest, RequestStatus } from '@/types';
 import {
@@ -234,6 +235,8 @@ export function RequestQueuePage() {
     const status = tab === 'all' ? undefined : (tab as RequestStatus);
     fetchRequests(status);
   }, [tab, fetchRequests]);
+
+  usePolling(reload, 5 * 60 * 1000);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = useMemo(
