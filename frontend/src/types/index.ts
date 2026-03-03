@@ -106,6 +106,20 @@ export interface MediaIssue {
   updatedAt: string;
 }
 
+/** Library item from DynamoDB cache */
+export interface LibraryItem {
+  pk: string;
+  mediaType: MediaType;
+  title: string;
+  year: number;
+  tmdbId?: number;
+  radarrId?: number;
+  tvdbId?: number;
+  sonarrId?: number;
+  hasFile: boolean;
+  syncedAt: string;
+}
+
 /** Episode info from Sonarr */
 export interface EpisodeInfo {
   seasonNumber: number;

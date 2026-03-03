@@ -299,6 +299,16 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Library (authenticated)
+  listLibrary:
+    handler: functions/library/list.handler
+    events:
+      - httpApi:
+          path: /library
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
   # Library sync (scheduled)
   syncLibrary:
     handler: functions/library/sync.handler

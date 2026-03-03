@@ -11,6 +11,7 @@ import type {
   RequestStatus,
   IssueStatus,
   User,
+  LibraryItem,
 } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -243,6 +244,20 @@ export const admin = {
 
     delete: (id: string) =>
       request<void>(`/admin/issues/${id}`, { method: 'DELETE' }),
+  },
+};
+
+// Library
+export const library = {
+  list: async (params?: { mediaType?: 'movie' | 'tv'; search?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.mediaType) query.set('mediaType', params.mediaType);
+    if (params?.search) query.set('search', params.search);
+    const qs = query.toString();
+    const data = await request<{ items: LibraryItem[]; total: number }>(
+      `/library${qs ? `?${qs}` : ''}`
+    );
+    return data;
   },
 };
 

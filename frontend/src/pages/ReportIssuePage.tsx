@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { search as searchApi, issues as issuesApi, requests as requestsApi } from '@/services/api';
+import { library as libraryApi, issues as issuesApi } from '@/services/api';
 import { toast } from 'sonner';
-import type { MediaSearchResult, EpisodeInfo, IssueType } from '@/types';
-import { Search, Film, Tv, AlertTriangle, Loader2, Check } from 'lucide-react';
+import type { LibraryItem, EpisodeInfo, IssueType } from '@/types';
+import {
+  Search,
+  Film,
+  Tv,
+  AlertTriangle,
+  Loader2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   wrong_language: 'Wrong Language',
@@ -23,57 +32,76 @@ const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   other: 'Other',
 };
 
-type Step = 'search' | 'select-episode' | 'details' | 'done';
+const PAGE_SIZE = 20;
+
+type Step = 'browse' | 'select-episode' | 'details' | 'done';
 
 export function ReportIssuePage() {
-  const [step, setStep] = useState<Step>('search');
-  const [query, setQuery] = useState('');
-  const [searchType, setSearchType] = useState<'movie' | 'tv'>('movie');
-  const [results, setResults] = useState<MediaSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState<MediaSearchResult | null>(null);
+  const [step, setStep] = useState<Step>('browse');
+
+  // Library browsing state
+  const [items, setItems] = useState<LibraryItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'movie' | 'tv'>('all');
+  const [page, setPage] = useState(0);
+
+  // Selection state
+  const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [selectedEpisode, setSelectedEpisode] = useState<EpisodeInfo | null>(null);
+
+  // Issue details
   const [issueType, setIssueType] = useState<IssueType | ''>('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSearch = useCallback(async () => {
-    if (!query.trim()) return;
-    setSearching(true);
-    try {
-      const all = await searchApi.query(query, searchType);
-      // Check all items in parallel against library cache
-      const candidates = all.slice(0, 10);
-      const checks = await Promise.all(
-        candidates.map(async (item) => {
-          try {
-            const check = await requestsApi.checkMedia(item.id, item.mediaType);
-            return check.exists ? item : null;
-          } catch {
-            return null;
-          }
-        })
-      );
-      setResults(checks.filter((item): item is MediaSearchResult => item !== null));
-    } catch {
-      toast.error('Search failed');
-    } finally {
-      setSearching(false);
-    }
-  }, [query, searchType]);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const handleSelectMedia = async (media: MediaSearchResult) => {
-    setSelectedMedia(media);
-    if (media.mediaType === 'tv') {
+  // Fetch library
+  const fetchLibrary = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: { mediaType?: 'movie' | 'tv'; search?: string } = {};
+      if (mediaFilter !== 'all') params.mediaType = mediaFilter;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      const data = await libraryApi.list(params);
+      setItems(data.items);
+      setTotal(data.total);
+    } catch {
+      toast.error('Failed to load library');
+    } finally {
+      setLoading(false);
+    }
+  }, [mediaFilter, debouncedSearch]);
+
+  useEffect(() => {
+    if (step === 'browse') {
+      fetchLibrary();
+    }
+  }, [fetchLibrary, step]);
+
+  // Pagination
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pagedItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const handleSelectItem = async (item: LibraryItem) => {
+    setSelectedItem(item);
+    if (item.mediaType === 'tv' && item.tvdbId) {
       setLoadingEpisodes(true);
       try {
-        // We need the Sonarr series ID — use the tmdbId from search
-        // The checkMedia endpoint returns info, but we need episodes
-        // Try fetching via the search ID (which is tvdbId for Sonarr)
-        const eps = await issuesApi.episodes(media.id);
+        const eps = await issuesApi.episodes(item.tvdbId);
         setEpisodes(eps);
         setStep('select-episode');
       } catch {
@@ -93,7 +121,7 @@ export function ReportIssuePage() {
     : [];
 
   const handleSubmit = async () => {
-    if (!selectedMedia || !issueType) return;
+    if (!selectedItem || !issueType) return;
     if (issueType === 'other' && !description.trim()) {
       toast.error('Please describe the issue');
       return;
@@ -101,11 +129,11 @@ export function ReportIssuePage() {
     setSubmitting(true);
     try {
       await issuesApi.create({
-        mediaType: selectedMedia.mediaType,
-        tmdbId: selectedMedia.id,
-        title: selectedMedia.title,
-        year: selectedMedia.year,
-        posterPath: selectedMedia.posterUrl,
+        mediaType: selectedItem.mediaType,
+        tmdbId: selectedItem.tmdbId ?? selectedItem.tvdbId ?? 0,
+        title: selectedItem.title,
+        year: String(selectedItem.year),
+        posterPath: '',
         ...(selectedEpisode ? {
           seasonNumber: selectedEpisode.seasonNumber,
           episodeNumber: selectedEpisode.episodeNumber,
@@ -124,10 +152,8 @@ export function ReportIssuePage() {
   };
 
   const reset = () => {
-    setStep('search');
-    setQuery('');
-    setResults([]);
-    setSelectedMedia(null);
+    setStep('browse');
+    setSelectedItem(null);
     setEpisodes([]);
     setSelectedSeason(null);
     setSelectedEpisode(null);
@@ -137,7 +163,7 @@ export function ReportIssuePage() {
 
   if (step === 'done') {
     return (
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-bold">Report an Issue</h1>
         <div className="flex flex-col items-center gap-4 py-20 text-center">
           <Check className="h-12 w-12 text-green-400" />
@@ -150,73 +176,105 @@ export function ReportIssuePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-2xl font-bold">Report an Issue</h1>
 
-      {/* Step 1: Search */}
-      {step === 'search' && (
+      {/* Step 1: Browse library */}
+      {step === 'browse' && (
         <>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <Select
-              value={searchType}
-              onValueChange={(v) => setSearchType(v as 'movie' | 'tv')}
+              value={mediaFilter}
+              onValueChange={(v) => { setMediaFilter(v as 'all' | 'movie' | 'tv'); setPage(0); }}
             >
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="movie">Movie</SelectItem>
-                <SelectItem value="tv">TV Show</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="movie">Movies</SelectItem>
+                <SelectItem value="tv">TV Shows</SelectItem>
               </SelectContent>
             </Select>
-            <div className="flex flex-1 gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search for a title in your library..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Filter by title..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
               />
-              <Button onClick={handleSearch} disabled={searching || !query.trim()}>
-                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
             </div>
           </div>
 
-          {searching && (
-            <p className="text-sm text-muted-foreground">Searching library...</p>
-          )}
-
-          {!searching && results.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">{results.length} found in library</p>
-              {results.map((item) => (
-                <Card
-                  key={`${item.mediaType}-${item.id}`}
-                  className="cursor-pointer transition-colors hover:bg-accent/50"
-                  onClick={() => handleSelectMedia(item)}
-                >
-                  <CardContent className="flex gap-3 p-3">
-                    <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-muted">
-                      {item.posterUrl ? (
-                        <img src={item.posterUrl} alt={item.title} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-muted-foreground">
-                          {item.mediaType === 'movie' ? <Film className="h-4 w-4" /> : <Tv className="h-4 w-4" />}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-sm text-muted-foreground">{item.year} &middot; {item.mediaType === 'movie' ? 'Movie' : 'TV Show'}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          )}
+          ) : pagedItems.length === 0 ? (
+            <p className="py-12 text-center text-muted-foreground">
+              {searchTerm ? 'No items match your filter.' : 'Library is empty. Wait for the next sync.'}
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {total} item{total !== 1 ? 's' : ''} in library
+                {totalPages > 1 && ` \u2022 Page ${page + 1} of ${totalPages}`}
+              </p>
 
-          {!searching && results.length === 0 && query && (
-            <p className="py-8 text-center text-muted-foreground">No matching items found in your library.</p>
+              <div className="space-y-1">
+                {pagedItems.map((item) => (
+                  <button
+                    key={item.pk}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent/50"
+                    onClick={() => handleSelectItem(item)}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                      {item.mediaType === 'movie' ? <Film className="h-4 w-4" /> : <Tv className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.year} &middot; {item.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+                      </p>
+                    </div>
+                    {item.mediaType === 'movie' && (
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
+                        item.hasFile ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {item.hasFile ? 'Available' : 'Monitored'}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 0}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {loadingEpisodes && (
@@ -229,10 +287,10 @@ export function ReportIssuePage() {
       )}
 
       {/* Step 2: Episode selection (TV only) */}
-      {step === 'select-episode' && selectedMedia && (
+      {step === 'select-episode' && selectedItem && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Reporting issue for: <strong>{selectedMedia.title}</strong>
+            Reporting issue for: <strong>{selectedItem.title}</strong>
           </p>
           <p className="text-sm">Select the episode with the issue, or skip to report for the whole series.</p>
 
@@ -269,7 +327,7 @@ export function ReportIssuePage() {
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => { setStep('search'); setSelectedMedia(null); }}>
+            <Button variant="outline" onClick={() => { setStep('browse'); setSelectedItem(null); setEpisodes([]); setSelectedSeason(null); }}>
               Back
             </Button>
             <Button variant="outline" onClick={() => { setSelectedEpisode(null); setStep('details'); }}>
@@ -285,28 +343,22 @@ export function ReportIssuePage() {
       )}
 
       {/* Step 3: Issue details */}
-      {step === 'details' && selectedMedia && (
+      {step === 'details' && selectedItem && (
         <div className="space-y-4">
           <Card>
             <CardContent className="flex gap-3 p-3">
-              <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-muted">
-                {selectedMedia.posterUrl ? (
-                  <img src={selectedMedia.posterUrl} alt={selectedMedia.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
-                    <AlertTriangle className="h-4 w-4" />
-                  </div>
-                )}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                {selectedItem.mediaType === 'movie' ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
               </div>
               <div>
-                <p className="font-medium">{selectedMedia.title} ({selectedMedia.year})</p>
+                <p className="font-medium">{selectedItem.title} ({selectedItem.year})</p>
                 {selectedEpisode ? (
                   <p className="text-sm text-muted-foreground">
                     S{selectedEpisode.seasonNumber}E{selectedEpisode.episodeNumber} &mdash; {selectedEpisode.title}
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {selectedMedia.mediaType === 'movie' ? 'Movie' : 'Entire series'}
+                    {selectedItem.mediaType === 'movie' ? 'Movie' : 'Entire series'}
                   </p>
                 )}
               </div>
@@ -343,11 +395,11 @@ export function ReportIssuePage() {
             <Button
               variant="outline"
               onClick={() => {
-                if (selectedMedia.mediaType === 'tv' && episodes.length > 0) {
+                if (selectedItem.mediaType === 'tv' && episodes.length > 0) {
                   setStep('select-episode');
                 } else {
-                  setStep('search');
-                  setSelectedMedia(null);
+                  setStep('browse');
+                  setSelectedItem(null);
                 }
               }}
             >
