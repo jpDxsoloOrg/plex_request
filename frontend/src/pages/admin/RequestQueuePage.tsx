@@ -230,8 +230,8 @@ export function RequestQueuePage() {
     }
   }, []);
 
-  const reload = useCallback(() => {
-    setLoading(true);
+  const reload = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const status = tab === 'all' ? undefined : (tab as RequestStatus);
     fetchRequests(status);
   }, [tab, fetchRequests]);
@@ -244,7 +244,7 @@ export function RequestQueuePage() {
     fetchRequests(status);
   }, [tab, fetchRequests]);
 
-  usePolling(reload, 5 * 60 * 1000);
+  usePolling(() => reload(true), 30 * 1000);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = useMemo(

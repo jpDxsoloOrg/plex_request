@@ -39,8 +39,8 @@ export function RequestsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingIssue, setDeletingIssue] = useState<string | null>(null);
 
-  const fetchRequests = useCallback(() => {
-    setLoading(true);
+  const fetchRequests = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     requestsApi
       .list()
       .then(setItems)
@@ -48,8 +48,8 @@ export function RequestsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const fetchIssues = useCallback(() => {
-    setIssuesLoading(true);
+  const fetchIssues = useCallback((silent = false) => {
+    if (!silent) setIssuesLoading(true);
     issuesApi
       .list()
       .then(setMyIssues)
@@ -62,7 +62,7 @@ export function RequestsPage() {
     fetchIssues();
   }, [fetchRequests, fetchIssues]);
 
-  usePolling(() => { fetchRequests(); fetchIssues(); }, 5 * 60 * 1000);
+  usePolling(() => { fetchRequests(true); fetchIssues(true); }, 30 * 1000);
 
   const handleDelete = async (requestId: string) => {
     setDeleting(requestId);

@@ -191,8 +191,8 @@ export function IssueQueuePage() {
     }
   }, []);
 
-  const reload = useCallback(() => {
-    setLoading(true);
+  const reload = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const status = tab === 'all' ? undefined : (tab as IssueStatus);
     fetchIssues(status);
   }, [tab, fetchIssues]);
@@ -205,7 +205,7 @@ export function IssueQueuePage() {
     fetchIssues(status);
   }, [tab, fetchIssues]);
 
-  usePolling(reload, 5 * 60 * 1000);
+  usePolling(() => reload(true), 30 * 1000);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = useMemo(
