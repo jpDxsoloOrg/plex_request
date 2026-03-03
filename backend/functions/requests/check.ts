@@ -59,19 +59,16 @@ export const handler = async (
       }
 
       const allSeries = await sonarr.getAllSeries(config);
-      // Match by TMDB ID — Sonarr stores tvdbId natively, but we search via lookup
-      // For a quick check, we look up the series by tmdb term
-      const results = await sonarr.lookupSeries(config, `tmdb:${tmdbId}`);
-      if (results.length > 0) {
-        const tvdbId = results[0].tvdbId;
-        const existing = allSeries.find((s) => s.tvdbId === tvdbId);
-        if (existing) {
-          return success({
-            exists: true,
-            hasFile: false,
-            message: 'This show is already being monitored in your library.',
-          });
-        }
+      // The search API returns tvdbId as the id for TV shows,
+      // so we can match directly against Sonarr's series list
+      const tvdbId = Number(tmdbId);
+      const existing = allSeries.find((s) => s.tvdbId === tvdbId);
+      if (existing) {
+        return success({
+          exists: true,
+          hasFile: false,
+          message: 'This show is already being monitored in your library.',
+        });
       }
     }
 
