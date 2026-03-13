@@ -117,7 +117,7 @@ export function LibraryPage() {
   const [showTotal, setShowTotal] = useState(0);
   const [showsLoading, setShowsLoading] = useState(true);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Reset page when filters change
   useEffect(() => {
