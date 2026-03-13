@@ -16,6 +16,7 @@ import { RequestsPage } from '@/pages/RequestsPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
 import { RequestQueuePage } from '@/pages/admin/RequestQueuePage';
 import { IssueQueuePage } from '@/pages/admin/IssueQueuePage';
+import { UsersPage } from '@/pages/admin/UsersPage';
 import { SettingsPage } from '@/pages/admin/SettingsPage';
 import { ReportIssuePage } from '@/pages/ReportIssuePage';
 import { LibraryPage } from '@/pages/LibraryPage';
@@ -87,6 +88,7 @@ function App() {
             <Route path="/admin" element={<DashboardPage />} />
             <Route path="/admin/requests" element={<RequestQueuePage />} />
             <Route path="/admin/issues" element={<IssueQueuePage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

@@ -17,6 +17,7 @@ provider:
     SETTINGS_TABLE: ${self:service}-${self:provider.stage}-settings
     ISSUES_TABLE: ${self:service}-${self:provider.stage}-issues
     LIBRARY_TABLE: ${self:service}-${self:provider.stage}-library
+    USER_PREFERENCES_TABLE: ${self:service}-${self:provider.stage}-user-preferences
     COGNITO_USER_POOL_ID: !Ref CognitoUserPool
     COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
     RADARR_BASE_URL: ${env:RADARR_BASE_URL, 'http://jpcoder.duckdns.org:7878'}
@@ -45,6 +46,7 @@ provider:
             - !GetAtt IssuesTable.Arn
             - !Join ['/', [!GetAtt IssuesTable.Arn, 'index/*']]
             - !GetAtt LibraryTable.Arn
+            - !GetAtt UserPreferencesTable.Arn
         - Effect: Allow
           Action:
             - cognito-idp:AdminGetUser
@@ -408,6 +410,25 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Admin users
+  adminListUsers:
+    handler: functions/admin/users/list.handler
+    events:
+      - httpApi:
+          path: /admin/users
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  adminUpdateAutoApprove:
+    handler: functions/admin/users/updateAutoApprove.handler
+    events:
+      - httpApi:
+          path: /admin/users/{userId}/auto-approve
+          method: PUT
+          authorizer:
+            name: jwtAuthorizer
+
 resources:
   Resources:
     # DynamoDB Tables
@@ -507,6 +528,18 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
+
+    UserPreferencesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USER_PREFERENCES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
 
     # Cognito User Pool
     CognitoUserPool:
