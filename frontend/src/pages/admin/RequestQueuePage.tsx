@@ -9,7 +9,8 @@ import { Pagination } from '@/components/Pagination';
 import { admin } from '@/services/api';
 import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
-import type { MediaRequest, RequestStatus } from '@/types';
+import { Progress } from '@/components/ui/progress';
+import type { MediaRequest, RequestStatus, DownloadStatus } from '@/types';
 import {
   Film,
   Tv,
@@ -32,11 +33,23 @@ const TABS: { value: string; label: string }[] = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const DL_STATE_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  downloading: 'Downloading',
+  importing: 'Importing...',
+  completed: 'Downloaded',
+  failed: 'Failed',
+  warning: 'Warning',
+  pending: 'Waiting...',
+};
+
 function RequestRow({
   request,
+  downloadStatus,
   onStatusChange,
 }: {
   request: MediaRequest;
+  downloadStatus?: DownloadStatus;
   onStatusChange: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -114,6 +127,19 @@ function RequestRow({
                 {' '}&middot; {request.userName} &middot; {date}
               </p>
             </div>
+            {downloadStatus && (request.status === 'approved' || request.status === 'downloading') && (
+              <div className="mt-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Progress value={downloadStatus.percentComplete} className="h-1.5 flex-1 max-w-48" />
+                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                    {downloadStatus.percentComplete}%
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {DL_STATE_LABELS[downloadStatus.downloadState] ?? downloadStatus.downloadState}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -218,6 +244,7 @@ export function RequestQueuePage() {
   const [items, setItems] = useState<MediaRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [downloadStatuses, setDownloadStatuses] = useState<Record<string, DownloadStatus>>({});
 
   const fetchRequests = useCallback(async (status?: RequestStatus) => {
     try {
@@ -230,11 +257,19 @@ export function RequestQueuePage() {
     }
   }, []);
 
+  const fetchDownloadStatus = useCallback(() => {
+    admin.requests
+      .getDownloadStatus()
+      .then((data) => setDownloadStatuses(data.statuses))
+      .catch(() => {/* ignore */});
+  }, []);
+
   const reload = useCallback((silent = false) => {
     if (!silent) setLoading(true);
     const status = tab === 'all' ? undefined : (tab as RequestStatus);
     fetchRequests(status);
-  }, [tab, fetchRequests]);
+    fetchDownloadStatus();
+  }, [tab, fetchRequests, fetchDownloadStatus]);
 
   useEffect(() => {
     setItems([]);
@@ -242,9 +277,10 @@ export function RequestQueuePage() {
     setPage(1);
     const status = tab === 'all' ? undefined : (tab as RequestStatus);
     fetchRequests(status);
-  }, [tab, fetchRequests]);
+    fetchDownloadStatus();
+  }, [tab, fetchRequests, fetchDownloadStatus]);
 
-  usePolling(() => reload(true), 30 * 1000);
+  usePolling(() => reload(true), 15 * 1000);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = useMemo(
@@ -276,7 +312,7 @@ export function RequestQueuePage() {
         <>
           <div className="space-y-3">
             {paged.map((req) => (
-              <RequestRow key={req.requestId} request={req} onStatusChange={reload} />
+              <RequestRow key={req.requestId} request={req} downloadStatus={downloadStatuses[req.requestId]} onStatusChange={reload} />
             ))}
           </div>
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

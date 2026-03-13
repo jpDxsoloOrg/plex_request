@@ -18,6 +18,8 @@ import { RequestQueuePage } from '@/pages/admin/RequestQueuePage';
 import { IssueQueuePage } from '@/pages/admin/IssueQueuePage';
 import { SettingsPage } from '@/pages/admin/SettingsPage';
 import { ReportIssuePage } from '@/pages/ReportIssuePage';
+import { LibraryPage } from '@/pages/LibraryPage';
+import { LibraryShowDetailPage } from '@/pages/LibraryShowDetailPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 function App() {
@@ -33,6 +35,9 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/confirm" element={<ConfirmPage />} />
+            {/* Public library routes */}
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/library/shows/:sonarrId" element={<LibraryShowDetailPage />} />
             {/* Authenticated routes */}
             <Route
               path="/search"

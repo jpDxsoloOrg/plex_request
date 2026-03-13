@@ -16,6 +16,28 @@ interface RadarrMovie {
   rootFolderPath?: string;
   monitored?: boolean;
   hasFile?: boolean;
+  sizeOnDisk?: number;
+}
+
+interface RadarrQueueItem {
+  id: number;
+  movieId: number;
+  title: string;
+  status: string;
+  trackedDownloadStatus: string;
+  trackedDownloadState: string;
+  size: number;
+  sizeleft: number;
+  timeleft: string;
+  estimatedCompletionTime: string;
+  downloadClient: string;
+}
+
+interface RadarrQueueResponse {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  records: RadarrQueueItem[];
 }
 
 interface QualityProfile {
@@ -110,4 +132,9 @@ export async function getQualityProfiles(config: RadarrConfig): Promise<QualityP
 
 export async function getRootFolders(config: RadarrConfig): Promise<RootFolder[]> {
   return radarrFetch<RootFolder[]>(config, '/api/v3/rootfolder');
+}
+
+export async function getQueue(config: RadarrConfig): Promise<RadarrQueueItem[]> {
+  const response = await radarrFetch<RadarrQueueResponse>(config, '/api/v3/queue?pageSize=100&includeMovie=false');
+  return response.records;
 }

@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { requests as requestsApi, issues as issuesApi } from '@/services/api';
 import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
-import type { MediaRequest, MediaIssue, IssueStatus } from '@/types';
+import type { MediaRequest, MediaIssue, IssueStatus, DownloadStatus } from '@/types';
 import { Search, InboxIcon, Trash2, Loader2, Film, Tv, AlertTriangle } from 'lucide-react';
 
 const PAGE_SIZE = 10;
@@ -38,6 +38,7 @@ export function RequestsPage() {
   const [page, setPage] = useState(1);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingIssue, setDeletingIssue] = useState<string | null>(null);
+  const [downloadStatuses, setDownloadStatuses] = useState<Record<string, DownloadStatus>>({});
 
   const fetchRequests = useCallback((silent = false) => {
     if (!silent) setLoading(true);
@@ -57,12 +58,20 @@ export function RequestsPage() {
       .finally(() => setIssuesLoading(false));
   }, []);
 
+  const fetchDownloadStatus = useCallback(() => {
+    requestsApi
+      .getDownloadStatus()
+      .then((data) => setDownloadStatuses(data.statuses))
+      .catch(() => {/* ignore */});
+  }, []);
+
   useEffect(() => {
     fetchRequests();
     fetchIssues();
-  }, [fetchRequests, fetchIssues]);
+    fetchDownloadStatus();
+  }, [fetchRequests, fetchIssues, fetchDownloadStatus]);
 
-  usePolling(() => { fetchRequests(true); fetchIssues(true); }, 30 * 1000);
+  usePolling(() => { fetchRequests(true); fetchIssues(true); fetchDownloadStatus(); }, 15 * 1000);
 
   const handleDelete = async (requestId: string) => {
     setDeleting(requestId);
@@ -125,6 +134,7 @@ export function RequestsPage() {
                   <RequestCard
                     key={req.requestId}
                     request={req}
+                    downloadStatus={downloadStatuses[req.requestId]}
                     actions={
                       DELETABLE_STATUSES.includes(req.status) ? (
                         <Button

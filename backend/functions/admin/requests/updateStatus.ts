@@ -1,42 +1,17 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { getItem, updateItem, REQUESTS_TABLE, SETTINGS_TABLE } from '../../../lib/dynamodb';
+import { getItem, updateItem, REQUESTS_TABLE } from '../../../lib/dynamodb';
 import { requireAdmin } from '../../../lib/auth';
 import { success, badRequest, notFound, forbidden, serverError } from '../../../lib/response';
+import { getServiceSetting } from '../../../lib/settings';
 import * as radarr from '../../../lib/integrations/radarr';
 import * as sonarr from '../../../lib/integrations/sonarr';
-import type { MediaRequest, RequestStatus, IntegrationSetting } from '../../../types';
+import type { MediaRequest, RequestStatus } from '../../../types';
 import { VALID_STATUS_TRANSITIONS as transitions } from '../../../types';
 import { sendStatusChangeEmail } from '../../../lib/email';
 
 interface UpdateStatusBody {
   status: RequestStatus;
   adminNote?: string;
-}
-
-async function getServiceSetting(key: string): Promise<IntegrationSetting> {
-  // Try DynamoDB first
-  const setting = await getItem({
-    TableName: SETTINGS_TABLE,
-    Key: { settingKey: key },
-  }) as IntegrationSetting | undefined;
-
-  if (setting?.baseUrl && setting.apiKey) {
-    return setting;
-  }
-
-  // Fall back to environment variables
-  const prefix = key.toUpperCase();
-  const baseUrl = process.env[`${prefix}_BASE_URL`] ?? '';
-  const apiKey = process.env[`${prefix}_API_KEY`] ?? '';
-
-  return {
-    settingKey: key,
-    baseUrl,
-    apiKey,
-    enabled: !!(baseUrl && apiKey),
-    qualityProfileId: setting?.qualityProfileId,
-    rootFolderPath: setting?.rootFolderPath,
-  };
 }
 
 async function handleApproval(request: MediaRequest): Promise<{ radarrId?: number; sonarrId?: number }> {
@@ -84,7 +59,8 @@ async function handleApproval(request: MediaRequest): Promise<{ radarrId?: numbe
       results[0].tvdbId,
       setting.qualityProfileId,
       setting.rootFolderPath,
-      request.seasons
+      request.seasons,
+      setting.languageProfileId
     );
 
     return { sonarrId: series.id };

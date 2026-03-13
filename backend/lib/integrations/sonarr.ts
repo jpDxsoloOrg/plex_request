@@ -3,6 +3,23 @@ interface SonarrConfig {
   apiKey: string;
 }
 
+interface SonarrSeasonStatistics {
+  episodeFileCount: number;
+  episodeCount: number;
+  totalEpisodeCount: number;
+  sizeOnDisk: number;
+  percentOfEpisodes: number;
+}
+
+interface SonarrSeriesStatistics {
+  seasonCount: number;
+  episodeFileCount: number;
+  episodeCount: number;
+  totalEpisodeCount: number;
+  sizeOnDisk: number;
+  percentOfEpisodes: number;
+}
+
 interface SonarrSeries {
   id: number;
   tvdbId: number;
@@ -16,7 +33,48 @@ interface SonarrSeries {
   rootFolderPath?: string;
   monitored?: boolean;
   seasonFolder?: boolean;
-  seasons?: Array<{ seasonNumber: number; monitored: boolean }>;
+  seasons?: Array<{
+    seasonNumber: number;
+    monitored: boolean;
+    statistics?: SonarrSeasonStatistics;
+  }>;
+  statistics?: SonarrSeriesStatistics;
+}
+
+export interface SonarrEpisode {
+  id: number;
+  seriesId: number;
+  tvdbId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  airDate: string;
+  airDateUtc: string;
+  overview: string;
+  hasFile: boolean;
+  monitored: boolean;
+}
+
+interface SonarrQueueItem {
+  id: number;
+  seriesId: number;
+  episodeId: number;
+  title: string;
+  status: string;
+  trackedDownloadStatus: string;
+  trackedDownloadState: string;
+  size: number;
+  sizeleft: number;
+  timeleft: string;
+  estimatedCompletionTime: string;
+  downloadClient: string;
+}
+
+interface SonarrQueueResponse {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  records: SonarrQueueItem[];
 }
 
 interface QualityProfile {
@@ -67,7 +125,8 @@ export async function addSeries(
   tvdbId: number,
   qualityProfileId: number,
   rootFolderPath: string,
-  monitoredSeasons?: number[]
+  monitoredSeasons?: number[],
+  languageProfileId?: number
 ): Promise<SonarrSeries> {
   // Check if series already exists in Sonarr
   const allSeries = await sonarrFetch<SonarrSeries[]>(config, '/api/v3/series');
@@ -84,25 +143,32 @@ export async function addSeries(
     throw new Error(`Series with TVDB ID ${tvdbId} not found`);
   }
 
+  const payload: Record<string, unknown> = {
+    tvdbId: series.tvdbId,
+    title: series.title,
+    qualityProfileId,
+    rootFolderPath,
+    monitored: true,
+    seasonFolder: true,
+    seasons: series.seasons?.map((s) => ({
+      ...s,
+      monitored: monitoredSeasons
+        ? monitoredSeasons.includes(s.seasonNumber)
+        : true,
+    })) ?? [],
+    addOptions: {
+      searchForMissingEpisodes: true,
+    },
+  };
+
+  // Sonarr v3 requires languageProfileId; v4 removed it
+  if (languageProfileId) {
+    payload.languageProfileId = languageProfileId;
+  }
+
   return sonarrFetch<SonarrSeries>(config, '/api/v3/series', {
     method: 'POST',
-    body: JSON.stringify({
-      tvdbId: series.tvdbId,
-      title: series.title,
-      qualityProfileId,
-      rootFolderPath,
-      monitored: true,
-      seasonFolder: true,
-      seasons: series.seasons?.map((s) => ({
-        ...s,
-        monitored: monitoredSeasons
-          ? monitoredSeasons.includes(s.seasonNumber)
-          : true,
-      })) ?? [],
-      addOptions: {
-        searchForMissingEpisodes: true,
-      },
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -118,6 +184,19 @@ export async function getQualityProfiles(config: SonarrConfig): Promise<QualityP
   return sonarrFetch<QualityProfile[]>(config, '/api/v3/qualityprofile');
 }
 
+export async function getLanguageProfiles(config: SonarrConfig): Promise<QualityProfile[]> {
+  return sonarrFetch<QualityProfile[]>(config, '/api/v3/languageprofile');
+}
+
 export async function getRootFolders(config: SonarrConfig): Promise<RootFolder[]> {
   return sonarrFetch<RootFolder[]>(config, '/api/v3/rootfolder');
+}
+
+export async function getEpisodes(config: SonarrConfig, seriesId: number): Promise<SonarrEpisode[]> {
+  return sonarrFetch<SonarrEpisode[]>(config, `/api/v3/episode?seriesId=${seriesId}`);
+}
+
+export async function getQueue(config: SonarrConfig): Promise<SonarrQueueItem[]> {
+  const response = await sonarrFetch<SonarrQueueResponse>(config, '/api/v3/queue?pageSize=100&includeSeries=false&includeEpisode=false');
+  return response.records;
 }

@@ -253,6 +253,15 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  adminGetLanguageProfiles:
+    handler: functions/admin/settings/getProfilesAndFolders.languageProfilesHandler
+    events:
+      - httpApi:
+          path: /admin/settings/{key}/language-profiles
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
   adminGetFolders:
     handler: functions/admin/settings/getProfilesAndFolders.foldersHandler
     events:
@@ -299,7 +308,7 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
-  # Library (authenticated)
+  # Library cache (authenticated — used by Report Issue)
   listLibrary:
     handler: functions/library/list.handler
     events:
@@ -309,6 +318,30 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Library browser (public — live from Radarr/Sonarr)
+  libraryMovies:
+    handler: functions/library/movies.handler
+    timeout: 30
+    events:
+      - httpApi:
+          path: /library/movies
+          method: GET
+
+  libraryShows:
+    handler: functions/library/shows.handler
+    timeout: 30
+    events:
+      - httpApi:
+          path: /library/shows
+          method: GET
+
+  libraryShowEpisodes:
+    handler: functions/library/episodes.handler
+    events:
+      - httpApi:
+          path: /library/shows/{sonarrId}/episodes
+          method: GET
+
   # Library sync (scheduled)
   syncLibrary:
     handler: functions/library/sync.handler
@@ -317,6 +350,34 @@ functions:
     events:
       - schedule:
           rate: rate(15 minutes)
+          enabled: true
+
+  # Download status (authenticated)
+  requestDownloadStatus:
+    handler: functions/requests/downloadStatus.handler
+    events:
+      - httpApi:
+          path: /requests/download-status
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  adminRequestDownloadStatus:
+    handler: functions/admin/requests/downloadStatus.handler
+    events:
+      - httpApi:
+          path: /admin/requests/download-status
+          method: GET
+          authorizer:
+            name: jwtAuthorizer
+
+  # Auto-sync request status (scheduled)
+  syncRequestStatus:
+    handler: functions/requests/syncStatus.handler
+    timeout: 60
+    events:
+      - schedule:
+          rate: rate(5 minutes)
           enabled: true
 
   # Admin issues
