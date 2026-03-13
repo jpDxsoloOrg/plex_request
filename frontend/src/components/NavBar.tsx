@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Film, Search, List, AlertTriangle, Shield, LogIn, LogOut, Menu } from 'lucide-react';
+import { Film, Search, List, AlertTriangle, Shield, LogIn, LogOut, Menu, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
@@ -18,6 +18,14 @@ function NavLinks({ onClick }: { onClick?: () => void }) {
       >
         <Search className="h-4 w-4" />
         Search
+      </Link>
+      <Link
+        to="/library"
+        className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+        onClick={onClick}
+      >
+        <BookOpen className="h-4 w-4" />
+        Library
       </Link>
       {user && (
         <>

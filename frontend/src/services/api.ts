@@ -12,6 +12,10 @@ import type {
   IssueStatus,
   User,
   LibraryItem,
+  LibraryMovie,
+  LibraryShow,
+  LibraryEpisode,
+  DownloadStatus,
 } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -173,6 +177,9 @@ export const requests = {
     request<{ exists: boolean; hasFile?: boolean; message?: string }>(
       `/requests/check?tmdbId=${tmdbId}&mediaType=${mediaType}`
     ),
+
+  getDownloadStatus: () =>
+    request<{ statuses: Record<string, DownloadStatus> }>('/requests/download-status'),
 };
 
 // Admin
@@ -193,6 +200,9 @@ export const admin = {
         method: 'PUT',
         body: JSON.stringify({ status, adminNote }),
       }),
+
+    getDownloadStatus: () =>
+      request<{ statuses: Record<string, DownloadStatus> }>('/admin/requests/download-status'),
 
     stats: async () => {
       const data = await request<{ counts: Record<string, number>; total: number; recentRequests: MediaRequest[] }>(
@@ -224,6 +234,9 @@ export const admin = {
     getQualityProfiles: (key: 'radarr' | 'sonarr') =>
       request<QualityProfile[]>(`/admin/settings/${key}/profiles`),
 
+    getLanguageProfiles: (key: 'sonarr') =>
+      request<QualityProfile[]>(`/admin/settings/${key}/language-profiles`),
+
     getRootFolders: (key: 'radarr' | 'sonarr') =>
       request<RootFolder[]>(`/admin/settings/${key}/folders`),
   },
@@ -247,7 +260,39 @@ export const admin = {
   },
 };
 
-// Library
+// Library browser (public — live from Radarr/Sonarr)
+export const libraryBrowser = {
+  getMovies: async (params?: { search?: string; status?: string; page?: number; pageSize?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.status && params.status !== 'all') query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    const qs = query.toString();
+    return request<{ movies: LibraryMovie[]; total: number; page: number; pageSize: number }>(
+      `/library/movies${qs ? `?${qs}` : ''}`
+    );
+  },
+
+  getShows: async (params?: { search?: string; status?: string; page?: number; pageSize?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.status && params.status !== 'all') query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    const qs = query.toString();
+    return request<{ shows: LibraryShow[]; total: number; page: number; pageSize: number }>(
+      `/library/shows${qs ? `?${qs}` : ''}`
+    );
+  },
+
+  getEpisodes: async (sonarrId: number, seasonNumber?: number) => {
+    const qs = seasonNumber !== undefined ? `?seasonNumber=${seasonNumber}` : '';
+    return request<{ episodes: LibraryEpisode[] }>(`/library/shows/${sonarrId}/episodes${qs}`);
+  },
+};
+
+// Library cache (authenticated — used by Report Issue)
 export const library = {
   list: async (params?: { mediaType?: 'movie' | 'tv'; search?: string }) => {
     const query = new URLSearchParams();

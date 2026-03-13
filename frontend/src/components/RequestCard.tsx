@@ -1,15 +1,30 @@
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Film, Tv } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
-import type { MediaRequest } from '@/types';
+import type { MediaRequest, DownloadStatus } from '@/types';
+
+const STATE_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  downloading: 'Downloading',
+  importing: 'Importing...',
+  completed: 'Downloaded',
+  failed: 'Failed',
+  warning: 'Warning',
+  pending: 'Waiting for download...',
+};
 
 interface RequestCardProps {
   request: MediaRequest;
+  downloadStatus?: DownloadStatus;
   actions?: React.ReactNode;
 }
 
-export function RequestCard({ request, actions }: RequestCardProps) {
+export function RequestCard({ request, downloadStatus, actions }: RequestCardProps) {
   const date = new Date(request.requestedAt).toLocaleDateString();
+  const showProgress =
+    downloadStatus &&
+    (request.status === 'approved' || request.status === 'downloading');
 
   return (
     <Card>
@@ -47,10 +62,27 @@ export function RequestCard({ request, actions }: RequestCardProps) {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={request.status} />
-            <span className="text-xs text-muted-foreground">{date}</span>
-          </div>
+          {showProgress ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Progress
+                  value={downloadStatus.percentComplete}
+                  className="h-1.5 flex-1"
+                />
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                  {downloadStatus.percentComplete}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {STATE_LABELS[downloadStatus.downloadState] ?? downloadStatus.downloadState}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <StatusBadge status={request.status} />
+              <span className="text-xs text-muted-foreground">{date}</span>
+            </div>
+          )}
         </div>
         {actions && <div className="flex shrink-0 items-center">{actions}</div>}
       </CardContent>

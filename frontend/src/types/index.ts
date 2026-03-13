@@ -42,6 +42,7 @@ export interface IntegrationSetting {
   baseUrl: string;
   apiKey: string;
   qualityProfileId?: number;
+  languageProfileId?: number;
   rootFolderPath?: string;
   enabled: boolean;
 }
@@ -79,6 +80,69 @@ export interface User {
   userId: string;
   email: string;
   groups: string[];
+}
+
+/** Library movie from GET /library/movies */
+export interface LibraryMovie {
+  radarrId: number;
+  tmdbId: number;
+  title: string;
+  year: number;
+  posterUrl: string;
+  status: 'downloaded' | 'missing';
+  sizeOnDisk: number;
+  monitored: boolean;
+}
+
+/** Library show from GET /library/shows */
+export interface LibraryShow {
+  sonarrId: number;
+  tvdbId: number;
+  title: string;
+  year: number;
+  posterUrl: string;
+  status: 'downloaded' | 'partial' | 'missing';
+  monitored: boolean;
+  episodeFileCount: number;
+  episodeCount: number;
+  totalEpisodeCount: number;
+  sizeOnDisk: number;
+  percentComplete: number;
+  seasons: LibraryShowSeason[];
+}
+
+export interface LibraryShowSeason {
+  seasonNumber: number;
+  monitored: boolean;
+  episodeFileCount: number;
+  episodeCount: number;
+  totalEpisodeCount: number;
+  percentComplete: number;
+}
+
+/** Episode from GET /library/shows/:id/episodes */
+export interface LibraryEpisode {
+  episodeId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  airDate: string;
+  overview: string;
+  hasFile: boolean;
+  monitored: boolean;
+}
+
+/** Download status for a request */
+export type DownloadState = 'queued' | 'downloading' | 'importing' | 'completed' | 'failed' | 'warning' | 'pending';
+
+export interface DownloadStatus {
+  requestId: string;
+  downloadState: DownloadState;
+  percentComplete: number;
+  sizeTotal?: number;
+  sizeRemaining?: number;
+  estimatedCompletion?: string;
+  downloadClient?: string;
 }
 
 /** Media issue types */

@@ -53,6 +53,31 @@ export const profilesHandler = async (
   }
 };
 
+export const languageProfilesHandler = async (
+  event: APIGatewayProxyEventV2WithJWTAuthorizer
+): Promise<APIGatewayProxyResultV2> => {
+  const admin = requireAdmin(event);
+  if (!admin) return forbidden('Admin access required');
+
+  const key = event.pathParameters?.key;
+  if (key !== 'sonarr') {
+    return badRequest('Language profiles are only available for Sonarr');
+  }
+
+  try {
+    const config = await getConfig(key);
+    if (!config.baseUrl || !config.apiKey) {
+      return badRequest('sonarr is not configured');
+    }
+
+    const profiles = await sonarr.getLanguageProfiles(config);
+    return success(profiles);
+  } catch (error) {
+    console.error('Get language profiles error:', error);
+    return serverError('Failed to fetch language profiles');
+  }
+};
+
 export const foldersHandler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyResultV2> => {
