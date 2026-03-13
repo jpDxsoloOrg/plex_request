@@ -23,6 +23,7 @@ interface SonarrSeriesStatistics {
 interface SonarrSeries {
   id: number;
   tvdbId: number;
+  tmdbId?: number;
   title: string;
   year: number;
   overview: string;

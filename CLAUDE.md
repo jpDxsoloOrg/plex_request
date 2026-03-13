@@ -122,6 +122,37 @@ SABNZBD_BASE_URL=http://jpcoder.duckdns.org:38080
 SABNZBD_API_KEY=
 ```
 
+## Deployment
+
+### Environment
+
+| Component | URL / Resource |
+|-----------|---------------|
+| **Frontend** | https://plex.jpdxsolo.com/ |
+| **Backend API** | https://w6fn8e41qf.execute-api.us-east-1.amazonaws.com |
+| **S3 Bucket** | `plex-request-api-devtest-frontend` |
+| **CloudFront ID** | `EIYHZFZ7PKY0J` (`d12olgsb7r1u46.cloudfront.net`) |
+| **Serverless Stage** | `devtest` |
+| **AWS Profile** | `league-szn` |
+| **Cognito User Pool** | `us-east-1_5QNT47Ud7` |
+| **Cognito Client ID** | `6plp7icdstc1vtk7dahkrbnmpe` |
+
+### Deploy Commands
+
+```bash
+# Backend
+cd backend && npx serverless deploy --stage devtest --aws-profile league-szn
+
+# Frontend
+cd frontend && npm run build -- --mode devtest && aws s3 sync dist s3://plex-request-api-devtest-frontend --profile league-szn --delete
+
+# CloudFront cache invalidation
+aws cloudfront create-invalidation --distribution-id EIYHZFZ7PKY0J --paths "/*" --profile league-szn
+
+# Full deployment (backend + frontend + invalidation)
+cd backend && npx serverless deploy --stage devtest --aws-profile league-szn && cd ../frontend && npm run build -- --mode devtest && aws s3 sync dist s3://plex-request-api-devtest-frontend --profile league-szn --delete && aws cloudfront create-invalidation --distribution-id EIYHZFZ7PKY0J --paths "/*" --profile league-szn
+```
+
 ## Local Development
 ```bash
 # Backend: start DynamoDB Local + serverless-offline

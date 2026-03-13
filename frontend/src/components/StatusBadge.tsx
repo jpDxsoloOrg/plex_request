@@ -11,7 +11,7 @@ const statusConfig: Record<RequestStatus, { label: string; className: string }> 
 };
 
 export function StatusBadge({ status }: { status: RequestStatus }) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? { label: status, className: 'bg-muted text-muted-foreground' };
   return (
     <Badge variant="outline" className={cn('text-xs', config.className)}>
       {config.label}
