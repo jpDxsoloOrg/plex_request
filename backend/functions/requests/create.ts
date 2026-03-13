@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { putItem, query, REQUESTS_TABLE } from '../../lib/dynamodb';
+import { putItem, query, getItem, REQUESTS_TABLE, USER_PREFERENCES_TABLE } from '../../lib/dynamodb';
 import { getUserContext } from '../../lib/auth';
+import { handleApproval } from '../../lib/approval';
 import { created, badRequest, conflict, serverError } from '../../lib/response';
-import type { MediaType, MediaRequest } from '../../types';
+import type { MediaType, MediaRequest, UserPreference } from '../../types';
 
 interface CreateRequestBody {
   mediaType: MediaType;
@@ -78,8 +79,14 @@ export const handler = async (
       }
     }
 
+    // Check if user has auto-approve enabled
+    const userPref = await getItem({
+      TableName: USER_PREFERENCES_TABLE,
+      Key: { userId: user.userId },
+    }) as UserPreference | undefined;
+
     const now = new Date().toISOString();
-    const request: MediaRequest = {
+    const requestData: MediaRequest = {
       requestId: uuidv4(),
       userId: user.userId,
       userName: user.email,
@@ -95,12 +102,28 @@ export const handler = async (
       updatedAt: now,
     };
 
+    if (userPref?.autoApprove) {
+      try {
+        const integrationIds = await handleApproval(requestData);
+        requestData.status = 'approved';
+        requestData.autoApproved = true;
+        if (integrationIds.radarrId) requestData.radarrId = integrationIds.radarrId;
+        if (integrationIds.sonarrId) requestData.sonarrId = integrationIds.sonarrId;
+      } catch (error) {
+        // If auto-approve integration fails, fall back to manual approval
+        console.error('Auto-approve integration failed, falling back to manual:', error);
+        requestData.status = 'requested';
+        requestData.adminNote = 'Auto-approve failed: ' +
+          (error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
+
     await putItem({
       TableName: REQUESTS_TABLE,
-      Item: request,
+      Item: requestData,
     });
 
-    return created(request);
+    return created(requestData);
   } catch (error) {
     console.error('Create request error:', error);
     return serverError('Failed to create request');

@@ -11,6 +11,8 @@ import type {
   RequestStatus,
   IssueStatus,
   User,
+  AdminUser,
+  UserPreference,
   LibraryItem,
   LibraryMovie,
   LibraryShow,
@@ -257,6 +259,19 @@ export const admin = {
 
     delete: (id: string) =>
       request<void>(`/admin/issues/${id}`, { method: 'DELETE' }),
+  },
+
+  users: {
+    list: async () => {
+      const data = await request<{ users: AdminUser[] }>('/admin/users');
+      return data.users;
+    },
+
+    updateAutoApprove: (userId: string, autoApprove: boolean) =>
+      request<UserPreference>(`/admin/users/${userId}/auto-approve`, {
+        method: 'PUT',
+        body: JSON.stringify({ autoApprove }),
+      }),
   },
 };
 

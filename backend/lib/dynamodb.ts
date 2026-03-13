@@ -79,3 +79,4 @@ export const REQUESTS_TABLE = process.env.REQUESTS_TABLE ?? 'plex-request-api-de
 export const SETTINGS_TABLE = process.env.SETTINGS_TABLE ?? 'plex-request-api-devtest-settings';
 export const ISSUES_TABLE = process.env.ISSUES_TABLE ?? 'plex-request-api-devtest-issues';
 export const LIBRARY_TABLE = process.env.LIBRARY_TABLE ?? 'plex-request-api-devtest-library';
+export const USER_PREFERENCES_TABLE = process.env.USER_PREFERENCES_TABLE ?? 'plex-request-api-devtest-user-preferences';
