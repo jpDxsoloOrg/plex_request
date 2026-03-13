@@ -10,6 +10,7 @@ interface UpdateSettingBody {
   baseUrl: string;
   apiKey?: string;
   qualityProfileId?: number;
+  languageProfileId?: number;
   rootFolderPath?: string;
   enabled: boolean;
 }
@@ -66,6 +67,7 @@ export const handler = async (
       baseUrl: body.baseUrl.replace(/\/+$/, ''),
       apiKey: resolvedApiKey,
       qualityProfileId: body.qualityProfileId,
+      languageProfileId: body.languageProfileId,
       rootFolderPath: body.rootFolderPath,
       enabled: body.enabled ?? true,
     };

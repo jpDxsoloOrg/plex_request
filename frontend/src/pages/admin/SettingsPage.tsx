@@ -21,6 +21,9 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
   const [qualityProfileId, setQualityProfileId] = useState(
     initial?.qualityProfileId?.toString() ?? ''
   );
+  const [languageProfileId, setLanguageProfileId] = useState(
+    initial?.languageProfileId?.toString() ?? ''
+  );
   const [rootFolderPath, setRootFolderPath] = useState(initial?.rootFolderPath ?? '');
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [saving, setSaving] = useState(false);
@@ -28,6 +31,7 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [profiles, setProfiles] = useState<QualityProfile[]>([]);
+  const [languageProfiles, setLanguageProfiles] = useState<QualityProfile[]>([]);
   const [folders, setFolders] = useState<RootFolder[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
@@ -36,12 +40,24 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
   const loadOptions = async () => {
     setLoadingOptions(true);
     try {
-      const [p, f] = await Promise.all([
+      const promises: [Promise<QualityProfile[]>, Promise<RootFolder[]>] = [
         admin.settings.getQualityProfiles(serviceKey),
         admin.settings.getRootFolders(serviceKey),
-      ]);
+      ];
+      const [p, f] = await Promise.all(promises);
       setProfiles(p);
       setFolders(f);
+
+      // Load language profiles for Sonarr (v3 requires them)
+      if (serviceKey === 'sonarr') {
+        try {
+          const lp = await admin.settings.getLanguageProfiles('sonarr');
+          setLanguageProfiles(lp);
+        } catch {
+          // Sonarr v4 removed language profiles — ignore the error
+          setLanguageProfiles([]);
+        }
+      }
     } catch (err) {
       toast.error(`Failed to load ${label} options: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -77,6 +93,7 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
         baseUrl,
         apiKey: apiKey || undefined,
         qualityProfileId: qualityProfileId ? Number(qualityProfileId) : undefined,
+        languageProfileId: languageProfileId ? Number(languageProfileId) : undefined,
         rootFolderPath: rootFolderPath || undefined,
         enabled,
       });
@@ -154,6 +171,26 @@ function ServiceForm({ serviceKey, label, initial, onSaved }: ServiceFormProps) 
               />
             )}
           </div>
+          {serviceKey === 'sonarr' && languageProfiles.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm text-muted-foreground">
+                Language Profile
+                {loadingOptions && <Loader2 className="ml-1 inline h-3 w-3 animate-spin" />}
+              </label>
+              <select
+                value={languageProfileId}
+                onChange={(e) => setLanguageProfileId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&>option]:bg-background [&>option]:text-foreground"
+              >
+                <option value="">Select a language profile...</option>
+                {languageProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-sm text-muted-foreground">
               Root Folder
