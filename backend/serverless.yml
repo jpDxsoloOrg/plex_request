@@ -114,6 +114,20 @@ functions:
           path: /auth/refresh
           method: POST
 
+  authForgotPassword:
+    handler: functions/auth/forgotPassword.handler
+    events:
+      - httpApi:
+          path: /auth/forgot-password
+          method: POST
+
+  authConfirmForgotPassword:
+    handler: functions/auth/confirmForgotPassword.handler
+    events:
+      - httpApi:
+          path: /auth/confirm-forgot-password
+          method: POST
+
   authMe:
     handler: functions/auth/me.handler
     events:

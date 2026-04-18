@@ -46,6 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.confirm(email, code);
   };
 
+  const forgotPassword = async (email: string) => {
+    await authApi.forgotPassword(email);
+  };
+
+  const confirmForgotPassword = async (email: string, code: string, password: string) => {
+    await authApi.confirmForgotPassword(email, code, password);
+  };
+
   const logout = () => {
     localStorage.removeItem('idToken');
     localStorage.removeItem('accessToken');
@@ -56,7 +64,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.groups.includes('admins') ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, login, signup, confirm, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        loading,
+        login,
+        signup,
+        confirm,
+        forgotPassword,
+        confirmForgotPassword,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
