@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Film, Tv } from 'lucide-react';
+import { Film, Tv, Zap } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { MediaRequest, DownloadStatus } from '@/types';
 
@@ -80,6 +80,11 @@ export function RequestCard({ request, downloadStatus, actions }: RequestCardPro
           ) : (
             <div className="flex items-center gap-2">
               <StatusBadge status={request.status} />
+              {request.autoApproved && (
+                <span className="flex items-center gap-0.5 text-xs text-yellow-400" title="Auto-approved">
+                  <Zap className="h-3 w-3" />
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">{date}</span>
             </div>
           )}

@@ -18,10 +18,28 @@ export interface MediaRequest {
   status: RequestStatus;
   adminNote?: string;
   seasons?: number[];
+  autoApproved?: boolean;
   radarrId?: number;
   sonarrId?: number;
   requestedAt: string;
   updatedAt: string;
+}
+
+/** User preferences stored in UserPreferences table */
+export interface UserPreference {
+  userId: string;
+  autoApprove: boolean;
+  updatedAt: string;
+}
+
+/** Admin view of a user (merged from Cognito + UserPreferences + request stats) */
+export interface AdminUser {
+  userId: string;
+  email: string;
+  status: string;
+  autoApprove: boolean;
+  requestCount: number;
+  createdAt: string;
 }
 
 /** DynamoDB Settings table item */

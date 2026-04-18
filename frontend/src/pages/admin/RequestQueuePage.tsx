@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Zap,
 } from 'lucide-react';
 
 const TABS: { value: string; label: string }[] = [
@@ -113,6 +114,11 @@ function RequestRow({
               <div className="flex items-center gap-2">
                 <h3 className="font-medium">{request.title}</h3>
                 <StatusBadge status={request.status} />
+                {request.autoApproved && (
+                  <span className="flex items-center gap-0.5 text-xs text-yellow-400" title="Auto-approved">
+                    <Zap className="h-3 w-3" />
+                  </span>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
                 {request.year} &middot; {request.mediaType === 'movie' ? 'Movie' : 'TV'}
