@@ -443,6 +443,12 @@ functions:
           authorizer:
             name: jwtAuthorizer
 
+  # Private: no HTTP event. Movie Date's Lambda role invokes it directly, and
+  # that role's IAM policy is the only grant. `name` is pinned for that policy.
+  integration:
+    name: ${self:service}-${self:provider.stage}-integration
+    handler: functions/integration/handler.handler
+
 resources:
   Resources:
     # DynamoDB Tables

@@ -14,6 +14,7 @@ import {
   type DeleteCommandInput,
   type QueryCommandInput,
   type ScanCommandInput,
+  type ScanCommandOutput,
   type BatchWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 
@@ -69,6 +70,17 @@ export async function queryCount(params: Omit<QueryCommandInput, 'Select'>) {
 export async function scan(params: ScanCommandInput) {
   const result = await docClient.send(new ScanCommand(params));
   return result.Items ?? [];
+}
+
+export async function scanAll(params: ScanCommandInput) {
+  const items: NonNullable<ScanCommandOutput['Items']> = [];
+  let startKey: ScanCommandInput['ExclusiveStartKey'];
+  do {
+    const result = await docClient.send(new ScanCommand({ ...params, ExclusiveStartKey: startKey }));
+    items.push(...(result.Items ?? []));
+    startKey = result.LastEvaluatedKey;
+  } while (startKey);
+  return items;
 }
 
 export async function batchWrite(params: BatchWriteCommandInput) {

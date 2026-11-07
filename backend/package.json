@@ -4,6 +4,7 @@
   "description": "Plex Request serverless backend",
   "scripts": {
     "offline": "serverless offline start --httpPort 3001",
+    "test": "node --require ts-node/register --test tests/*.test.ts",
     "deploy": "serverless deploy",
     "deploy:dev": "serverless deploy --stage devtest",
     "seed": "ts-node scripts/seed-data.ts",
