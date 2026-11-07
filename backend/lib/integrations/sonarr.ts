@@ -144,6 +144,12 @@ export async function addSeries(
     throw new Error(`Series with TVDB ID ${tvdbId} not found`);
   }
 
+  // Movie Date numbers seasons from TMDB. Adding a series with nothing monitored would
+  // look like a success while downloading nothing, and block any later request for it.
+  if (monitoredSeasons?.length && !series.seasons?.some((s) => monitoredSeasons.includes(s.seasonNumber))) {
+    throw new Error(`None of seasons ${monitoredSeasons.join(', ')} exist on ${series.title} in Sonarr`);
+  }
+
   const payload: Record<string, unknown> = {
     tvdbId: series.tvdbId,
     title: series.title,
