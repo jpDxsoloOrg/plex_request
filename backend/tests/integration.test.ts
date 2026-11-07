@@ -51,6 +51,10 @@ function movieRow(tmdbId: number, hasFile: boolean): FakeLibraryRow {
   return { pk: `movie#${tmdbId}`, mediaType: 'movie', title: `Movie ${tmdbId}`, tmdbId, hasFile };
 }
 
+function showRow(tvdbId: number, hasFile: boolean): FakeLibraryRow {
+  return { pk: `tv#${tvdbId}`, mediaType: 'tv', title: `Show ${tvdbId}`, tvdbId, hasFile };
+}
+
 function activeRequest(status: RequestStatus, userId: string): MediaRequest {
   return {
     requestId: `request-${userId}`,
@@ -203,6 +207,50 @@ describe('integration lambda', () => {
       installFakeDynamo(createFakeState({ library: [movieRow(0, true), movieRow(603, true)] }));
       const response = await handler({ op: 'libraryMovies' });
       assert.deepEqual(response, { ok: true, data: [{ tmdbId: 603, hasFile: true }] });
+    });
+  });
+
+  describe('libraryShows', () => {
+    it('returns only tvdbId and hasFile for shows, across pages', async () => {
+      installFakeDynamo(createFakeState({
+        library: [
+          showRow(121361, false),
+          movieRow(603, true),
+          showRow(81189, true),
+        ],
+        libraryPageSize: 1,
+      }));
+      const response = await handler({ op: 'libraryShows' });
+      assert.deepEqual(response, {
+        ok: true,
+        data: [{ tvdbId: 121361, hasFile: false }, { tvdbId: 81189, hasFile: true }],
+      });
+    });
+
+    it('returns an empty list when no shows are synced', async () => {
+      installFakeDynamo(createFakeState({ library: [movieRow(603, true)] }));
+      assert.deepEqual(await handler({ op: 'libraryShows' }), { ok: true, data: [] });
+    });
+
+    it('skips rows Sonarr has no TVDB id for', async () => {
+      installFakeDynamo(createFakeState({
+        library: [
+          showRow(0, false),
+          { pk: 'tv#undefined', mediaType: 'tv', title: 'No Id', hasFile: false },
+          showRow(121361, false),
+        ],
+      }));
+      const response = await handler({ op: 'libraryShows' });
+      assert.deepEqual(response, { ok: true, data: [{ tvdbId: 121361, hasFile: false }] });
+    });
+
+    it('answers with a generic error when the scan fails', async () => {
+      installFakeDynamo(createFakeState({ failWith: new Error('table detail') }));
+      assert.deepEqual(await handler({ op: 'libraryShows' }), {
+        ok: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Plex Request could not complete the operation',
+      });
     });
   });
 

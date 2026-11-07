@@ -96,8 +96,9 @@ function runLibraryScan(
   const page = state.library
     .slice(offset, end)
     .filter((row) => !values || row.mediaType === values[':mediaType']);
+  const fields = String(input.ProjectionExpression).split(', ') as Array<keyof FakeLibraryRow>;
   return {
-    Items: page.map((row) => ({ tmdbId: row.tmdbId, hasFile: row.hasFile })),
+    Items: page.map((row) => Object.fromEntries(fields.map((field) => [field, row[field]]))),
     ...(end < state.library.length ? { LastEvaluatedKey: { offset: end } } : {}),
   };
 }

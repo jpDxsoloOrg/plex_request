@@ -20,6 +20,11 @@ export interface LibraryMovieEntry {
   hasFile: boolean;
 }
 
+export interface LibraryShowEntry {
+  tvdbId: number;
+  hasFile: boolean;
+}
+
 export interface MovieStatus {
   inLibrary: boolean;
   hasFile: boolean;
@@ -117,6 +122,21 @@ async function libraryMovies(): Promise<LibraryMovieEntry[]> {
     .map((row) => ({ tmdbId: row.tmdbId as number, hasFile: row.hasFile === true }));
 }
 
+// Library sync writes hasFile: false for every series, so today a row only
+// means "Sonarr has this show", not "episodes are on disk".
+async function libraryShows(): Promise<LibraryShowEntry[]> {
+  const rows = await scanAll({
+    TableName: LIBRARY_TABLE,
+    FilterExpression: '#mediaType = :mediaType',
+    ProjectionExpression: 'tvdbId, hasFile',
+    ExpressionAttributeNames: { '#mediaType': 'mediaType' },
+    ExpressionAttributeValues: { ':mediaType': 'tv' },
+  });
+  return rows
+    .filter((row) => typeof row.tvdbId === 'number' && row.tvdbId > 0)
+    .map((row) => ({ tvdbId: row.tvdbId as number, hasFile: row.hasFile === true }));
+}
+
 async function movieStatus(payload: Record<string, unknown>): Promise<MovieStatus> {
   const tmdbId = requireTmdbId(payload.tmdbId);
   const userId = requireUserId(payload.userId);
@@ -171,12 +191,14 @@ async function dispatch(payload: Record<string, unknown>): Promise<unknown> {
       return findUser(payload);
     case 'libraryMovies':
       return libraryMovies();
+    case 'libraryShows':
+      return libraryShows();
     case 'movieStatus':
       return movieStatus(payload);
     case 'createRequest':
       return createRequest(payload);
     default:
-      throw new InvalidInputError('op must be findUser, libraryMovies, movieStatus or createRequest');
+      throw new InvalidInputError('op must be findUser, libraryMovies, libraryShows, movieStatus or createRequest');
   }
 }
 
