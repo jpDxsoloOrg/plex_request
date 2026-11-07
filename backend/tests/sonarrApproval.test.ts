@@ -157,6 +157,15 @@ describe('Sonarr approval', () => {
     ]);
   });
 
+  it('refuses seasons Sonarr does not have, rather than monitoring nothing', async () => {
+    installSonarrSetting();
+    const sonarr = installFakeSonarr([requestedShow]);
+
+    await assert.rejects(handleApproval(tvRequest({ seasons: [7] })), /None of seasons 7/);
+
+    assert.equal(sonarr.added.length, 0);
+  });
+
   it('reuses a show Sonarr already has without adding it again', async () => {
     installSonarrSetting();
     const sonarr = installFakeSonarr([requestedShow], [{ id: 12, tvdbId: REQUESTED_TVDB_ID }]);
