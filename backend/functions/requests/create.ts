@@ -1,20 +1,7 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { putItem, query, getItem, REQUESTS_TABLE, USER_PREFERENCES_TABLE } from '../../lib/dynamodb';
 import { getUserContext } from '../../lib/auth';
-import { handleApproval } from '../../lib/approval';
+import { createMediaRequest, type NewRequestInput } from '../../lib/requests';
 import { created, badRequest, conflict, serverError } from '../../lib/response';
-import type { MediaType, MediaRequest, UserPreference } from '../../types';
-
-interface CreateRequestBody {
-  mediaType: MediaType;
-  tmdbId: number;
-  title: string;
-  year: string;
-  overview: string;
-  posterPath: string;
-  seasons?: number[];
-}
 
 export const handler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
@@ -23,7 +10,7 @@ export const handler = async (
     return badRequest('Request body is required');
   }
 
-  const body = JSON.parse(event.body) as CreateRequestBody;
+  const body = JSON.parse(event.body) as NewRequestInput;
 
   if (!body.mediaType || !body.tmdbId || !body.title) {
     return badRequest('mediaType, tmdbId, and title are required');
@@ -36,94 +23,15 @@ export const handler = async (
   const user = getUserContext(event);
 
   try {
-    // Check for duplicate: same tmdbId + mediaType not already active
-    const existingRequests = await query({
-      TableName: REQUESTS_TABLE,
-      IndexName: 'StatusIndex',
-      KeyConditionExpression: '#status = :status',
-      FilterExpression: 'tmdbId = :tmdbId AND mediaType = :mediaType',
-      ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: {
-        ':status': 'requested',
-        ':tmdbId': body.tmdbId,
-        ':mediaType': body.mediaType,
-      },
-    });
+    const result = await createMediaRequest(body, user);
 
-    // Also check approved and downloading statuses
-    const activeStatuses = ['approved', 'downloading'];
-    for (const status of activeStatuses) {
-      const active = await query({
-        TableName: REQUESTS_TABLE,
-        IndexName: 'StatusIndex',
-        KeyConditionExpression: '#status = :status',
-        FilterExpression: 'tmdbId = :tmdbId AND mediaType = :mediaType',
-        ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: {
-          ':status': status,
-          ':tmdbId': body.tmdbId,
-          ':mediaType': body.mediaType,
-        },
-      });
-      existingRequests.push(...active);
-    }
-
-    if (existingRequests.length > 0) {
+    if (result.outcome === 'duplicate') {
       return conflict('This media has already been requested');
     }
-
-    // Validate seasons if provided
-    if (body.seasons !== undefined) {
-      if (!Array.isArray(body.seasons) || body.seasons.some((s) => !Number.isInteger(s) || s < 1)) {
-        return badRequest('seasons must be an array of positive integers');
-      }
+    if (result.outcome === 'invalidSeasons') {
+      return badRequest('seasons must be an array of positive integers');
     }
-
-    // Check if user has auto-approve enabled
-    const userPref = await getItem({
-      TableName: USER_PREFERENCES_TABLE,
-      Key: { userId: user.userId },
-    }) as UserPreference | undefined;
-
-    const now = new Date().toISOString();
-    const requestData: MediaRequest = {
-      requestId: uuidv4(),
-      userId: user.userId,
-      userName: user.email,
-      mediaType: body.mediaType,
-      tmdbId: body.tmdbId,
-      title: body.title,
-      year: body.year ?? '',
-      overview: body.overview ?? '',
-      posterPath: body.posterPath ?? '',
-      status: 'requested',
-      ...(body.seasons?.length ? { seasons: body.seasons } : {}),
-      requestedAt: now,
-      updatedAt: now,
-    };
-
-    if (userPref?.autoApprove) {
-      try {
-        const integrationIds = await handleApproval(requestData);
-        requestData.status = 'approved';
-        requestData.autoApproved = true;
-        if (integrationIds.radarrId) requestData.radarrId = integrationIds.radarrId;
-        if (integrationIds.sonarrId) requestData.sonarrId = integrationIds.sonarrId;
-      } catch (error) {
-        // If auto-approve integration fails, fall back to manual approval
-        console.error('Auto-approve integration failed, falling back to manual:', error);
-        requestData.status = 'requested';
-        requestData.adminNote = 'Auto-approve failed: ' +
-          (error instanceof Error ? error.message : 'Unknown error');
-      }
-    }
-
-    await putItem({
-      TableName: REQUESTS_TABLE,
-      Item: requestData,
-    });
-
-    return created(requestData);
+    return created(result.request);
   } catch (error) {
     console.error('Create request error:', error);
     return serverError('Failed to create request');
