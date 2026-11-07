@@ -430,14 +430,129 @@ describe('integration lambda', () => {
       assert.equal(radarr.calls.length, 0);
     });
 
-    it('cannot be turned into a TV request or carry seasons', async () => {
+    describe('for a show', () => {
+      const showPayload = {
+        op: 'createRequest',
+        userId: USER_ID,
+        email: 'member@example.com',
+        mediaType: 'tv',
+        tvdbId: 81189,
+        title: 'Breaking Bad',
+        year: '2008',
+      };
+
+      it('stores the TVDB id and the chosen seasons', async () => {
+        const state = createFakeState();
+        installFakeDynamo(state);
+
+        const response = await handler({ ...showPayload, seasons: [1, 2] });
+
+        assert.equal(response.ok, true);
+        const stored = state.requests[0];
+        assert.equal(stored.mediaType, 'tv');
+        assert.equal(stored.tmdbId, 81189);
+        assert.deepEqual(stored.seasons, [1, 2]);
+      });
+
+      it('leaves seasons off when every season is wanted', async () => {
+        const state = createFakeState();
+        installFakeDynamo(state);
+
+        await handler(showPayload);
+
+        assert.equal('seasons' in state.requests[0], false);
+      });
+
+      it('never takes a tmdbId for a show', async () => {
+        const state = createFakeState();
+        installFakeDynamo(state);
+
+        const response = await handler({ ...showPayload, tvdbId: undefined, tmdbId: 1396 });
+
+        assert.equal(response.ok, false);
+        assert.equal(state.requests.length, 0);
+      });
+
+      it('reports a duplicate of a show already requested', async () => {
+        const state = createFakeState();
+        installFakeDynamo(state);
+
+        await handler(showPayload);
+        const response = await handler(showPayload);
+
+        assert.deepEqual(response, { ok: true, data: { outcome: 'duplicate' } });
+        assert.equal(state.requests.length, 1);
+      });
+
+      for (const seasons of [[], [0], [1.5], ['1'], 'all']) {
+        it(`rejects seasons ${JSON.stringify(seasons)}`, async () => {
+          const state = createFakeState();
+          installFakeDynamo(state);
+
+          const response = await handler({ ...showPayload, seasons });
+
+          assert.equal(response.ok, false);
+          assert.equal(state.requests.length, 0);
+        });
+      }
+    });
+
+    it('rejects seasons on a movie and an unknown media type', async () => {
       const state = createFakeState();
       installFakeDynamo(state);
 
-      await handler({ ...createPayload, mediaType: 'tv', seasons: [1] });
+      const withSeasons = await handler({ ...createPayload, seasons: [1] });
+      const unknownType = await handler({ ...createPayload, mediaType: 'book' });
 
-      assert.equal(state.requests[0].mediaType, 'movie');
-      assert.equal('seasons' in state.requests[0], false);
+      assert.equal(withSeasons.ok, false);
+      assert.equal(unknownType.ok, false);
+      assert.equal(state.requests.length, 0);
+    });
+  });
+
+  describe('showStatus', () => {
+    const payload = { op: 'showStatus', tvdbId: 81189, userId: USER_ID };
+
+    it('reports a show outside the library with no request', async () => {
+      installFakeDynamo(createFakeState());
+
+      assert.deepEqual(await handler(payload), {
+        ok: true,
+        data: { inLibrary: false, hasFile: false, activeRequest: null },
+      });
+    });
+
+    it('reports a show in the library', async () => {
+      installFakeDynamo(createFakeState({ library: [showRow(81189, false)] }));
+
+      assert.deepEqual(await handler(payload), {
+        ok: true,
+        data: { inLibrary: true, hasFile: false, activeRequest: null },
+      });
+    });
+
+    it('does not mistake a movie with the same number for the show', async () => {
+      const movieRequest = { ...activeRequest('requested', USER_ID), tmdbId: 81189 };
+      installFakeDynamo(createFakeState({ library: [movieRow(81189, true)], requests: [movieRequest] }));
+
+      assert.deepEqual(await handler(payload), {
+        ok: true,
+        data: { inLibrary: false, hasFile: false, activeRequest: null },
+      });
+    });
+
+    it("reports the caller's active request", async () => {
+      const request = { ...activeRequest('approved', USER_ID), mediaType: 'tv' as const, tmdbId: 81189 };
+      installFakeDynamo(createFakeState({ requests: [request] }));
+
+      assert.deepEqual(await handler(payload), {
+        ok: true,
+        data: {
+          inLibrary: false,
+          hasFile: false,
+          activeRequest: { status: 'approved', requestedByUser: true },
+        },
+      });
     });
   });
 
