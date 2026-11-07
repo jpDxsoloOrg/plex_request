@@ -1,7 +1,7 @@
 import { getItem, scanAll, LIBRARY_TABLE } from '../../lib/dynamodb';
-import { createMediaRequest, findActiveRequests } from '../../lib/requests';
+import { createMediaRequest, findActiveRequests, type NewRequestInput } from '../../lib/requests';
 import { findVerifiedUserByEmail, type VerifiedUser } from '../../lib/users';
-import type { LibraryItem, RequestStatus } from '../../types';
+import type { LibraryItem, MediaType, RequestStatus } from '../../types';
 
 const TMDB_POSTER_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const MAX_EMAIL_LENGTH = 254;
@@ -25,7 +25,7 @@ export interface LibraryShowEntry {
   hasFile: boolean;
 }
 
-export interface MovieStatus {
+export interface TitleStatus {
   inLibrary: boolean;
   hasFile: boolean;
   activeRequest: { status: RequestStatus; requestedByUser: boolean } | null;
@@ -60,6 +60,27 @@ function requireTmdbId(value: unknown): number {
     throw new InvalidInputError('tmdbId must be a positive integer');
   }
   return value;
+}
+
+function requireTvdbId(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new InvalidInputError('tvdbId must be a positive integer');
+  }
+  return value;
+}
+
+function optionalSeasons(value: unknown): number[] | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((season) => !Number.isSafeInteger(season) || season < 1)
+  ) {
+    throw new InvalidInputError('seasons must be a non-empty list of positive integers');
+  }
+  return value as number[];
 }
 
 function requireTitle(value: unknown): string {
@@ -137,13 +158,15 @@ async function libraryShows(): Promise<LibraryShowEntry[]> {
     .map((row) => ({ tvdbId: row.tvdbId as number, hasFile: row.hasFile === true }));
 }
 
-async function movieStatus(payload: Record<string, unknown>): Promise<MovieStatus> {
-  const tmdbId = requireTmdbId(payload.tmdbId);
-  const userId = requireUserId(payload.userId);
-
+async function titleStatus(
+  pk: string,
+  requestId: number,
+  mediaType: MediaType,
+  userId: string
+): Promise<TitleStatus> {
   const [libraryItem, activeRequests] = await Promise.all([
-    getItem({ TableName: LIBRARY_TABLE, Key: { pk: `movie#${tmdbId}` } }) as Promise<LibraryItem | undefined>,
-    findActiveRequests(tmdbId, 'movie'),
+    getItem({ TableName: LIBRARY_TABLE, Key: { pk } }) as Promise<LibraryItem | undefined>,
+    findActiveRequests(requestId, mediaType),
   ]);
 
   const ownRequest = activeRequests.find((request) => request.userId === userId);
@@ -158,31 +181,56 @@ async function movieStatus(payload: Record<string, unknown>): Promise<MovieStatu
   };
 }
 
-// Movies only. The Sonarr approval path has an id bug that must be fixed before
-// TV requests can arrive here.
+async function movieStatus(payload: Record<string, unknown>): Promise<TitleStatus> {
+  const tmdbId = requireTmdbId(payload.tmdbId);
+  return titleStatus(`movie#${tmdbId}`, tmdbId, 'movie', requireUserId(payload.userId));
+}
+
+// Requests keep a show's TVDB id in their tmdbId field, as search does.
+async function showStatus(payload: Record<string, unknown>): Promise<TitleStatus> {
+  const tvdbId = requireTvdbId(payload.tvdbId);
+  return titleStatus(`tv#${tvdbId}`, tvdbId, 'tv', requireUserId(payload.userId));
+}
+
+function requestInput(payload: Record<string, unknown>): NewRequestInput {
+  const details = {
+    title: requireTitle(payload.title),
+    year: optionalYear(payload.year),
+    overview: optionalOverview(payload.overview),
+    posterPath: optionalPosterUrl(payload.posterPath),
+  };
+  if (payload.mediaType === 'tv') {
+    // A show needs a tvdbId and never reads tmdbId, so a TMDB show id can't reach
+    // Sonarr as if it were a TVDB one.
+    return {
+      ...details,
+      mediaType: 'tv',
+      tmdbId: requireTvdbId(payload.tvdbId),
+      seasons: optionalSeasons(payload.seasons),
+    };
+  }
+  if (payload.mediaType !== undefined && payload.mediaType !== 'movie') {
+    throw new InvalidInputError('mediaType must be movie or tv');
+  }
+  if (payload.seasons !== undefined) {
+    throw new InvalidInputError('seasons only apply to a show');
+  }
+  return { ...details, mediaType: 'movie', tmdbId: requireTmdbId(payload.tmdbId) };
+}
+
 async function createRequest(payload: Record<string, unknown>): Promise<CreateRequestData> {
   const user = { userId: requireUserId(payload.userId), email: requireEmail(payload.email) };
-  const result = await createMediaRequest(
-    {
-      mediaType: 'movie',
-      tmdbId: requireTmdbId(payload.tmdbId),
-      title: requireTitle(payload.title),
-      year: optionalYear(payload.year),
-      overview: optionalOverview(payload.overview),
-      posterPath: optionalPosterUrl(payload.posterPath),
-    },
-    user
-  );
+  const result = await createMediaRequest(requestInput(payload), user);
 
   if (result.outcome === 'created') {
-    // adminNote stays private: it can quote raw Radarr error bodies
+    // adminNote stays private: it can quote raw Radarr or Sonarr error bodies
     const { requestId, status, autoApproved } = result.request;
     return { outcome: 'created', requestId, status, autoApproved: autoApproved === true };
   }
   if (result.outcome === 'duplicate') {
     return { outcome: 'duplicate' };
   }
-  throw new Error('Unexpected seasons rejection for a movie request');
+  throw new InvalidInputError('seasons must be a non-empty list of positive integers');
 }
 
 async function dispatch(payload: Record<string, unknown>): Promise<unknown> {
@@ -195,10 +243,12 @@ async function dispatch(payload: Record<string, unknown>): Promise<unknown> {
       return libraryShows();
     case 'movieStatus':
       return movieStatus(payload);
+    case 'showStatus':
+      return showStatus(payload);
     case 'createRequest':
       return createRequest(payload);
     default:
-      throw new InvalidInputError('op must be findUser, libraryMovies, libraryShows, movieStatus or createRequest');
+      throw new InvalidInputError('op must be findUser, libraryMovies, libraryShows, movieStatus, showStatus or createRequest');
   }
 }
 
