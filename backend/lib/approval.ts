@@ -37,16 +37,13 @@ export async function handleApproval(request: MediaRequest): Promise<{ radarrId?
 
     const config = { baseUrl: setting.baseUrl, apiKey: setting.apiKey };
 
-    // Sonarr lookup accepts tmdb:<id> format — find the correct match
-    const results = await sonarr.lookupSeries(config, `tmdb:${request.tmdbId}`);
-    if (!results.length) {
-      throw new Error(`Series not found in Sonarr for TMDB ID ${request.tmdbId}`);
+    // Search returns Sonarr's TVDB id for shows, so request.tmdbId holds a TVDB id
+    const tvdbId = request.tmdbId;
+    const results = await sonarr.lookupSeries(config, `tvdb:${tvdbId}`);
+    const match = results.find((r) => r.tvdbId === tvdbId);
+    if (!match) {
+      throw new Error(`Series not found in Sonarr for TVDB ID ${tvdbId}`);
     }
-
-    // Match by tmdbId first, fall back to title match, then first result
-    const match = results.find((r) => r.tmdbId === request.tmdbId)
-      ?? results.find((r) => r.title.toLowerCase() === request.title.toLowerCase())
-      ?? results[0];
 
     const series = await sonarr.addSeries(
       config,
