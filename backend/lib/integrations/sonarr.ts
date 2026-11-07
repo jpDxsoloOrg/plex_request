@@ -138,7 +138,7 @@ export async function addSeries(
 
   // Look up by TVDB ID to get full series details
   const results = await lookupSeries(config, `tvdb:${tvdbId}`);
-  const series = results[0];
+  const series = results.find((result) => result.tvdbId === tvdbId);
 
   if (!series) {
     throw new Error(`Series with TVDB ID ${tvdbId} not found`);
